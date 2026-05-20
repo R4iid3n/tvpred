@@ -1,23 +1,17 @@
 const express = require('express');
-const cors = require('cors');
-const fetch = require('node-fetch');
-const path = require('path');
+const cors    = require('cors');
+const fetch   = require('node-fetch');
+const path    = require('path');
 
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-// Normalize probability: Polymarket returns 0-1 floats
-const pct = v => Math.round(parseFloat(v) * 100);
-
-// Short volume formatter
 function fmtVol(n) {
   n = parseFloat(n) || 0;
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -25,42 +19,12 @@ function fmtVol(n) {
   return String(Math.round(n));
 }
 
-// Short upvote formatter
 function fmtNum(n) {
   n = parseInt(n) || 0;
   if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
   return String(n);
 }
 
-// Guess spoiler type from title/text
-function guessSpoilerType(text = '') {
-  const t = text.toLowerCase();
-  if (/cancel|annul|end/.test(t))            return 'cancellation';
-  if (/renew|season \d|saison \d/.test(t))   return 'renewal';
-  if (/premiere|release|date|trailer/.test(t)) return 'release_date';
-  if (/cast|actor|actric|star|play|role/.test(t)) return 'casting';
-  return 'plot';
-}
-
-// Confidence score based on upvotes + recency
-function calcConfidence(upvotes, created_utc) {
-  const age_h = (Date.now() / 1000 - created_utc) / 3600;
-  let base = Math.min(40 + Math.log10(Math.max(upvotes, 1)) * 18, 92);
-  if (age_h < 48) base += 5;
-  if (upvotes > 500) base = Math.min(base + 8, 95);
-  return Math.round(base);
-}
-
-// Trend from Polymarket outcomePrices history (naive: compare last 2 prices if available)
-function calcTrend(market) {
-  // Polymarket doesn't expose history in CLOB easily; use spread as proxy
-  const yes = parseFloat(market.outcomePrices?.[0] || market.tokens?.[0]?.price || 0.5);
-  const no  = parseFloat(market.outcomePrices?.[1] || market.tokens?.[1]?.price || 0.5);
-  if (Math.abs(yes - no) < 0.05) return 'stable';
-  return yes > 0.55 ? 'up' : 'down';
-}
-
-// Date formatter
 function fmtDate(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -68,248 +32,7 @@ function fmtDate(iso) {
   return d.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' });
 }
 
-// ── POLYMARKET ────────────────────────────────────────────────────────────────
-
-async function fetchPolymarketByQuery(query) {
-  const keywords = encodeURIComponent(query);
-  const now = Date.now();
-  const headers = { 'Accept': 'application/json', 'User-Agent': 'TVpred/1.0' };
-
-  // Primary: Gamma API — supports active/closed filters and full-text search
-  let combined = [];
-  try {
-    const gammaUrl = `https://gamma-api.polymarket.com/markets?limit=30&active=true&closed=false&q=${keywords}`;
-    const rg = await fetch(gammaUrl, { headers, timeout: 8000 });
-    if (rg.ok) {
-      const dg = await rg.json();
-      const gammaMarkets = Array.isArray(dg) ? dg : (dg.markets || []);
-      const q = query.toLowerCase();
-      combined = gammaMarkets.filter(m => {
-        const title = (m.question || m.groupItemTitle || m.title || '').toLowerCase();
-        return q.split(' ').some(word => word.length > 3 && title.includes(word));
-      });
-    }
-  } catch {}
-
-  // Fallback: CLOB endpoint with active filter
-  if (combined.length < 2) {
-    try {
-      const clobUrl = `https://clob.polymarket.com/markets?next_cursor=&limit=30&active=true`;
-      const res = await fetch(clobUrl, { headers, timeout: 8000 });
-      if (res.ok) {
-        const data = await res.json();
-        const markets = (data.data || data.markets || []);
-        const q = query.toLowerCase();
-        const filtered = markets.filter(m => {
-          const title = (m.question || m.title || '').toLowerCase();
-          const desc  = (m.description || '').toLowerCase();
-          return q.split(' ').some(word => word.length > 3 && (title.includes(word) || desc.includes(word)));
-        });
-        combined = [...combined, ...filtered];
-      }
-    } catch {}
-  }
-
-  // Filter out markets already closed/resolved (end_date in the past)
-  const active = combined.filter(m => {
-    const end = m.endDate || m.end_date_iso || m.endDateIso;
-    if (!end) return true; // no date = keep
-    return new Date(end).getTime() > now;
-  });
-
-  // Deduplicate by question text
-  const seen = new Set();
-  const unique = active.filter(m => {
-    const key = (m.question || m.title || '').slice(0, 50);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
-  // Sort by soonest end date first (most time-relevant)
-  unique.sort((a, b) => {
-    const da = new Date(a.endDate || a.end_date_iso || '9999').getTime();
-    const db = new Date(b.endDate || b.end_date_iso || '9999').getTime();
-    return da - db;
-  });
-
-  return unique.slice(0, 6).map(m => {
-    // Handle both CLOB and Gamma formats
-    const yesPrice = parseFloat(
-      m.outcomePrices?.[0] ??
-      m.tokens?.[0]?.price ??
-      m.bestBid ??
-      0.5
-    );
-    const volume = parseFloat(m.volume || m.volumeNum || m.liquidityNum || 0);
-    return {
-      show: extractShowName(m.question || m.title || '', query),
-      question: m.question || m.groupItemTitle || m.title || 'Marché sans titre',
-      probability: Math.min(99, Math.max(1, pct(yesPrice))),
-      volume: fmtVol(volume),
-      end_date: fmtDate(m.endDate || m.end_date_iso),
-      trend: calcTrend(m),
-      polymarket_url: m.url || `https://polymarket.com/event/${m.slug || m.conditionId || ''}`
-    };
-  });
-}
-
-// Extract show name from question, fallback to query
-function extractShowName(question, query) {
-  // Try to extract show name from "Will X be renewed..." patterns
-  const match = question.match(/^Will (.+?) (be|win|get|have|release|return|get)/i)
-              || question.match(/^(.+?) season \d/i)
-              || question.match(/^(.+?): /i);
-  if (match) return match[1].slice(0, 30).trim();
-  // Capitalize query as fallback
-  return query.split(' ').slice(0, 3).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-}
-
-// ── REDDIT ────────────────────────────────────────────────────────────────────
-
-async function fetchRedditLeaks(query) {
-  const headers = {
-    'User-Agent': 'TVpred:v1.0 (by /u/tvpred_app)',
-    'Accept': 'application/json'
-  };
-
-  const show = query.split(' ').slice(0, 3).join('+');
-  const leakTerms = `${show}+leak OR spoiler OR rumor OR renewal OR cancelled OR season`;
-
-  const searchUrl = `https://www.reddit.com/search.json?q=${encodeURIComponent(leakTerms)}&sort=new&limit=25&t=month&type=link`;
-
-  const res = await fetch(searchUrl, { headers, timeout: 8000 });
-  if (!res.ok) throw new Error(`Reddit HTTP ${res.status}`);
-  const data = await res.json();
-
-  let posts = (data?.data?.children || [])
-    .map(c => c.data)
-    .filter(p => p && !p.over_18 && p.selftext !== '[removed]' && p.score > 10);
-
-  // If sparse, widen to past year
-  if (posts.length < 3) {
-    try {
-      const widerUrl = `https://www.reddit.com/search.json?q=${encodeURIComponent(leakTerms)}&sort=new&limit=25&t=year&type=link`;
-      const r3 = await fetch(widerUrl, { headers, timeout: 6000 });
-      if (r3.ok) {
-        const d3 = await r3.json();
-        const wider = (d3?.data?.children || [])
-          .map(c => c.data)
-          .filter(p => p && !p.over_18 && p.selftext !== '[removed]' && p.score > 5);
-        posts = [...posts, ...wider];
-      }
-    } catch {}
-  }
-
-  // Also try subreddit-specific search
-  const slug = query.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
-  let extraPosts = [];
-  try {
-    const subUrl = `https://www.reddit.com/r/${slug}+tvshows+television/search.json?q=${encodeURIComponent(show)}&sort=hot&limit=10&restrict_sr=0&t=month`;
-    const r2 = await fetch(subUrl, { headers, timeout: 5000 });
-    if (r2.ok) {
-      const d2 = await r2.json();
-      extraPosts = (d2?.data?.children || []).map(c => c.data).filter(p => p && p.score > 5);
-    }
-  } catch {}
-
-  const allPosts = [...posts, ...extraPosts];
-
-  // Deduplicate by title
-  const seenTitles = new Set();
-  const unique = allPosts.filter(p => {
-    if (seenTitles.has(p.title)) return false;
-    seenTitles.add(p.title);
-    return true;
-  });
-
-  // Score by relevance + engagement
-  const scored = unique
-    .map(p => ({
-      ...p,
-      relevance: scoreRelevance(p.title + ' ' + (p.selftext || ''), query)
-    }))
-    .filter(p => p.relevance > 0)
-    .sort((a, b) => (b.relevance * b.score) - (a.relevance * a.score))
-    .slice(0, 6);
-
-  return scored.map(p => ({
-    show: extractShowName(p.title, query),
-    subreddit: `r/${p.subreddit}`,
-    title: p.title.slice(0, 120),
-    content: buildContent(p),
-    confidence: calcConfidence(p.score, p.created_utc),
-    upvotes: fmtNum(p.score),
-    spoiler_type: guessSpoilerType(p.title + ' ' + (p.selftext || '')),
-    reddit_url: `https://www.reddit.com${p.permalink}`
-  }));
-}
-
-function scoreRelevance(text, query) {
-  const t = text.toLowerCase();
-  const words = query.toLowerCase().split(' ').filter(w => w.length > 2);
-  const leakWords = ['leak', 'spoiler', 'rumor', 'rumour', 'confirmed', 'renew', 'cancel', 'season', 'reveal', 'exclusive'];
-  let score = words.filter(w => t.includes(w)).length;
-  if (leakWords.some(w => t.includes(w))) score += 2;
-  return score;
-}
-
-function buildContent(p) {
-  const text = p.selftext?.trim();
-  if (text && text.length > 30 && text !== '[deleted]') {
-    return text.slice(0, 280) + (text.length > 280 ? '...' : '');
-  }
-  // Fallback: generate from title context
-  return `Post avec ${p.num_comments || 0} commentaires. Score: ${p.score} upvotes. Posté dans r/${p.subreddit}.`;
-}
-
-// ── ALL TV MARKETS ────────────────────────────────────────────────────────────
-
-// Must match in the question/title only (not description — too noisy)
-const TV_PATTERNS = [
-  /\bseason\s+\d/i,           // Season 2, Season 3...
-  /\brenewed?\b/i,             // renewed, renew
-  /\bcancell?ed?\b/i,          // cancelled, canceled
-  /\bepisode\b/i,              // episode
-  /\bseries\s+finale\b/i,      // series finale (not generic "finale")
-  /\bseason\s+finale\b/i,      // season finale
-  /\bseries\s+premiere\b/i,    // series premiere
-  /\bseason\s+premiere\b/i,    // season premiere
-  /\bemmy\b/i,                 // Emmy awards = TV
-  /\bsitcom\b/i,
-  /\banime\b/i,
-  /\bdocuseries\b/i,
-  /\btv\s+show\b/i,
-  /\btv\s+series\b/i,
-  /\bnetflix\s+series\b/i,
-  /\bhbo\s+(?:series|show|original)\b/i,
-  /\bstreaming\s+series\b/i,
-];
-
-// Hard exclusions — sports/games/politics that slip through
-const EXCLUDE_PATTERNS = [
-  /\bworld cup\b/i,
-  /\bfifa\b/i,
-  /\bnfl\b/i, /\bnba\b/i, /\bnhl\b/i, /\bmlb\b/i, /\bnascar\b/i,
-  /\bsuper bowl\b/i, /\bsuperbowl\b/i,
-  /\bolympic/i,
-  /\btournament\b/i, /\bchampionship\b/i,
-  /\bgrand prix\b/i, /\bformula\s+1\b/i,
-  /\bwwe\b/i, /\bufc\b/i,
-  /\bgta\s*vi?\b/i, /\bvideo game\b/i,
-  /\belection\b/i, /\bpresident\b/i,
-  /\bbitcoin\b/i, /\bcrypto\b/i, /\bethereeum\b/i,
-  /\bstock\s+market\b/i,
-];
-
-function isTvMarket(m) {
-  // Only check the question/title — descriptions are too noisy
-  const question = (m.question || m.groupItemTitle || m.title || '');
-  if (EXCLUDE_PATTERNS.some(re => re.test(question))) return false;
-  return TV_PATTERNS.some(re => re.test(question));
-}
-
-// Extract yes price safely — Gamma API may return outcomePrices as JSON string
+// Extract yes price — Gamma API may return outcomePrices as JSON string
 function getYesPrice(m) {
   let prices = m.outcomePrices;
   if (typeof prices === 'string') {
@@ -319,157 +42,218 @@ function getYesPrice(m) {
     const v = parseFloat(prices[0]);
     if (!isNaN(v)) return v;
   }
-  const fromTokens = parseFloat(m.tokens?.[0]?.price);
-  if (!isNaN(fromTokens)) return fromTokens;
-  const fromBid = parseFloat(m.bestBid ?? m.bestAsk ?? m.lastTradePrice);
-  if (!isNaN(fromBid)) return fromBid;
+  const t = parseFloat(m.tokens?.[0]?.price);
+  if (!isNaN(t)) return t;
+  const b = parseFloat(m.bestBid ?? m.bestAsk ?? m.lastTradePrice);
+  if (!isNaN(b)) return b;
   return 0.5;
 }
 
-async function fetchAllTvMarkets() {
-  const headers = { 'Accept': 'application/json', 'User-Agent': 'TVpred/1.0' };
+// Reddit confidence: upvotes + recency bonus
+function calcConfidence(upvotes, created_utc) {
+  const age_h = (Date.now() / 1000 - created_utc) / 3600;
+  let base = Math.min(40 + Math.log10(Math.max(upvotes, 1)) * 18, 92);
+  if (age_h < 48) base += 5;
+  if (upvotes > 500) base = Math.min(base + 8, 95);
+  return Math.round(base);
+}
+
+// Alpha score: Reddit posts that challenge market consensus are more valuable
+// High alpha = strong Reddit signal where market is NOT already at extreme
+function calcAlpha(redditConfidence, marketProb) {
+  const uncertainty = 1 - Math.abs(marketProb / 100 - 0.5) * 2; // 1 at 50%, 0 at 0/100%
+  return Math.round(redditConfidence * (0.5 + 0.5 * uncertainty));
+}
+
+function guessPostType(text = '') {
+  const t = text.toLowerCase();
+  if (/insider|source|exclusive|leak|confirmed/.test(t)) return 'insider';
+  if (/rumor|rumour|hear|word is|apparently/.test(t))    return 'rumor';
+  if (/analysis|predict|think|believe|odds/.test(t))     return 'analysis';
+  if (/news|report|official|announce/.test(t))           return 'news';
+  return 'discussion';
+}
+
+// ── POLYMARKET SEARCH ─────────────────────────────────────────────────────────
+
+async function searchMarkets(query) {
+  const q = encodeURIComponent(query);
+  const headers = { 'Accept': 'application/json', 'User-Agent': 'AlphaFinder/1.0' };
   const now = Date.now();
 
-  const urls = [
-    'https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&q=season',
-    'https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&q=renewed',
-    'https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&q=cancelled',
-    'https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&q=episode',
-    'https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&q=finale',
-    'https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&q=premiere',
-  ];
-
-  const results = await Promise.allSettled(
-    urls.map(url => fetch(url, { headers, timeout: 10000 }).then(r => r.ok ? r.json() : []))
-  );
+  // Parallel: Gamma text search + CLOB search
+  const [gammaRes, clobRes] = await Promise.allSettled([
+    fetch(`https://gamma-api.polymarket.com/markets?limit=50&active=true&closed=false&q=${q}`, { headers, timeout: 10000 })
+      .then(r => r.ok ? r.json() : []),
+    fetch(`https://clob.polymarket.com/markets?next_cursor=&limit=30&active=true`, { headers, timeout: 8000 })
+      .then(r => r.ok ? r.json() : {})
+  ]);
 
   let all = [];
-  for (const r of results) {
-    if (r.status === 'fulfilled') {
-      const raw = r.value;
-      all = all.concat(Array.isArray(raw) ? raw : (raw.markets || []));
-    }
+
+  if (gammaRes.status === 'fulfilled') {
+    const raw = gammaRes.value;
+    all = all.concat(Array.isArray(raw) ? raw : (raw.markets || []));
   }
 
-  // Keep only active TV markets (not yet resolved)
-  const active = all.filter(m => {
+  if (clobRes.status === 'fulfilled') {
+    const raw = clobRes.value;
+    const ql  = query.toLowerCase();
+    const clobMarkets = (raw.data || raw.markets || []).filter(m => {
+      const title = (m.question || m.title || '').toLowerCase();
+      return ql.split(' ').some(w => w.length > 3 && title.includes(w));
+    });
+    all = all.concat(clobMarkets);
+  }
+
+  // Filter active + deduplicate
+  const seen = new Set();
+  const unique = all.filter(m => {
     const end = m.endDate || m.end_date_iso;
     if (end && new Date(end).getTime() <= now) return false;
-    return isTvMarket(m);
-  });
-
-  // Deduplicate
-  const seen = new Set();
-  const unique = active.filter(m => {
     const key = (m.question || m.title || '').slice(0, 60);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 
-  // Sort soonest end date first
-  unique.sort((a, b) => {
-    const da = new Date(a.endDate || a.end_date_iso).getTime();
-    const db = new Date(b.endDate || b.end_date_iso).getTime();
-    return da - db;
-  });
-
-  return unique.slice(0, 80).map(m => {
+  return unique.map(m => {
     const yesPrice = getYesPrice(m);
+    const prob = Math.min(99, Math.max(1, Math.round(yesPrice * 100)));
     return {
-      show: extractShowName(m.question || m.groupItemTitle || m.title || '', ''),
+      id: m.conditionId || m.id || m.slug || '',
       question: m.question || m.groupItemTitle || m.title || 'Market',
-      probability: Math.min(99, Math.max(1, Math.round(yesPrice * 100))),
+      probability: prob,
       volume: fmtVol(parseFloat(m.volume || m.volumeNum || m.liquidityNum || 0)),
       end_date: fmtDate(m.endDate || m.end_date_iso),
-      trend: calcTrend(m),
-      polymarket_url: m.url || `https://polymarket.com/event/${m.slug || m.conditionId || ''}`
+      polymarket_url: m.url || `https://polymarket.com/event/${m.slug || m.conditionId || ''}`,
+      // search term for Reddit = first 4 meaningful words of question
+      search_hint: (m.question || m.title || query)
+        .replace(/^will\s+/i, '')
+        .split(/\s+/)
+        .filter(w => w.length > 2)
+        .slice(0, 4)
+        .join(' ')
+    };
+  })
+  // Sort: highest probability first (strongest signal markets)
+  .sort((a, b) => b.probability - a.probability)
+  .slice(0, 30);
+}
+
+// ── REDDIT ALPHA ──────────────────────────────────────────────────────────────
+
+async function fetchRedditAlpha(query) {
+  const headers = {
+    'User-Agent': 'AlphaFinder:v1.0 (by /u/alphafinder_app)',
+    'Accept': 'application/json'
+  };
+
+  const terms = query.split(' ').slice(0, 4).join('+');
+  const alphaTerms = `${terms} leak OR rumor OR insider OR confirmed OR source OR exclusive`;
+
+  const searchUrl = `https://www.reddit.com/search.json?q=${encodeURIComponent(alphaTerms)}&sort=new&limit=30&t=month&type=link`;
+
+  const res = await fetch(searchUrl, { headers, timeout: 8000 });
+  if (!res.ok) throw new Error(`Reddit HTTP ${res.status}`);
+  const data = await res.json();
+
+  let posts = (data?.data?.children || [])
+    .map(c => c.data)
+    .filter(p => p && !p.over_18 && p.selftext !== '[removed]' && p.score > 5);
+
+  // Widen to year if sparse
+  if (posts.length < 3) {
+    try {
+      const widerUrl = `https://www.reddit.com/search.json?q=${encodeURIComponent(alphaTerms)}&sort=new&limit=25&t=year&type=link`;
+      const r2 = await fetch(widerUrl, { headers, timeout: 6000 });
+      if (r2.ok) {
+        const d2 = await r2.json();
+        const more = (d2?.data?.children || []).map(c => c.data)
+          .filter(p => p && !p.over_18 && p.selftext !== '[removed]' && p.score > 3);
+        posts = [...posts, ...more];
+      }
+    } catch {}
+  }
+
+  // Deduplicate
+  const seenT = new Set();
+  const unique = posts.filter(p => {
+    if (seenT.has(p.title)) return false;
+    seenT.add(p.title);
+    return true;
+  });
+
+  // Score relevance
+  const qWords = query.toLowerCase().split(' ').filter(w => w.length > 2);
+  const alphaWords = ['leak', 'insider', 'source', 'exclusive', 'confirmed', 'rumor', 'rumour', 'reveal', 'scoop'];
+
+  const scored = unique.map(p => {
+    const text = (p.title + ' ' + (p.selftext || '')).toLowerCase();
+    let score = qWords.filter(w => text.includes(w)).length * 2;
+    if (alphaWords.some(w => text.includes(w))) score += 3;
+    if (p.score > 100) score += 2;
+    if (p.score > 1000) score += 3;
+    return { ...p, _score: score };
+  })
+  .filter(p => p._score > 0)
+  .sort((a, b) => (b._score * Math.log(b.score + 1)) - (a._score * Math.log(a.score + 1)))
+  .slice(0, 8);
+
+  return scored.map(p => {
+    const confidence = calcConfidence(p.score, p.created_utc);
+    return {
+      title: p.title.slice(0, 140),
+      subreddit: `r/${p.subreddit}`,
+      upvotes: fmtNum(p.score),
+      confidence,
+      post_type: guessPostType(p.title + ' ' + (p.selftext || '')),
+      content: buildContent(p),
+      reddit_url: `https://www.reddit.com${p.permalink}`,
+      age_h: Math.round((Date.now() / 1000 - p.created_utc) / 3600)
     };
   });
 }
 
+function buildContent(p) {
+  const text = p.selftext?.trim();
+  if (text && text.length > 30 && text !== '[deleted]') {
+    return text.slice(0, 300) + (text.length > 300 ? '…' : '');
+  }
+  return `${p.num_comments || 0} commentaires · ${p.score} upvotes · r/${p.subreddit}`;
+}
+
+// ── ROUTES ────────────────────────────────────────────────────────────────────
+
 app.get('/api/markets', async (req, res) => {
-  console.log('[markets] fetch all TV markets');
+  const { q } = req.query;
+  if (!q || q.trim().length < 2) return res.status(400).json({ error: 'q requis' });
+  console.log(`[markets] "${q}"`);
   try {
-    const markets = await fetchAllTvMarkets();
-    console.log(`  ${markets.length} TV markets found`);
+    const markets = await searchMarkets(q.trim());
+    console.log(`  ${markets.length} markets`);
     res.json({ markets, timestamp: new Date().toISOString() });
   } catch (err) {
-    console.error('[markets] error:', err.message);
+    console.error('[markets]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
-
-// ── LEAKS FOR SHOW ─────────────────────────────────────────────────────────────
 
 app.get('/api/leaks', async (req, res) => {
   const { q } = req.query;
-  if (!q || q.trim().length < 2) {
-    return res.status(400).json({ error: 'Paramètre q requis' });
-  }
-  const query = q.trim();
-  console.log(`[leaks] "${query}"`);
+  if (!q || q.trim().length < 2) return res.status(400).json({ error: 'q requis' });
+  console.log(`[leaks] "${q}"`);
   try {
-    const leaks = await fetchRedditLeaks(query);
-    console.log(`  ${leaks.length} leaks`);
+    const leaks = await fetchRedditAlpha(q.trim());
+    console.log(`  ${leaks.length} posts`);
     res.json({ leaks, timestamp: new Date().toISOString() });
   } catch (err) {
-    console.error('[leaks] error:', err.message);
+    console.error('[leaks]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── MAIN API ROUTE ────────────────────────────────────────────────────────────
-
-app.get('/api/search', async (req, res) => {
-  const { q } = req.query;
-  if (!q || q.trim().length < 2) {
-    return res.status(400).json({ error: 'Paramètre q requis' });
-  }
-
-  const query = q.trim();
-  console.log(`[search] "${query}"`);
-
-  const errors = [];
-  let markets = [], leaks = [];
-
-  // Fetch in parallel
-  const [marketsResult, leaksResult] = await Promise.allSettled([
-    fetchPolymarketByQuery(query),
-    fetchRedditLeaks(query)
-  ]);
-
-  if (marketsResult.status === 'fulfilled') {
-    markets = marketsResult.value;
-    console.log(`  Polymarket: ${markets.length} marchés`);
-  } else {
-    console.error('  Polymarket error:', marketsResult.reason?.message);
-    errors.push(`Polymarket: ${marketsResult.reason?.message}`);
-  }
-
-  if (leaksResult.status === 'fulfilled') {
-    leaks = leaksResult.value;
-    console.log(`  Reddit: ${leaks.length} posts`);
-  } else {
-    console.error('  Reddit error:', leaksResult.reason?.message);
-    errors.push(`Reddit: ${leaksResult.reason?.message}`);
-  }
-
-  res.json({
-    query,
-    timestamp: new Date().toISOString(),
-    markets,
-    leaks,
-    ...(errors.length ? { warnings: errors } : {})
-  });
-});
-
-// Health check
 app.get('/api/health', (_, res) => res.json({ status: 'ok', ts: Date.now() }));
-
-// Serve frontend
 app.get('*', (_, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-app.listen(PORT, () => {
-  console.log(`\n🎬 TVpred backend démarré sur http://localhost:${PORT}\n`);
-});
+app.listen(PORT, () => console.log(`\nAlphaFinder on http://localhost:${PORT}\n`));

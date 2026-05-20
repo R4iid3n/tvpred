@@ -3,401 +3,401 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TVpred — Marchés TV & Leaks Reddit</title>
+<title>AlphaFinder — Polymarket × Reddit</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;500;700;800&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0c0c0e;--bg2:#141416;--bg3:#1c1c20;--bg4:#26262b;
+  --bg:#0a0a0c;--bg2:#121215;--bg3:#1a1a1e;--bg4:#242428;
   --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.14);
   --text:#f0efe8;--text2:#8a897f;--text3:#4a4942;
-  --accent:#e8ff47;--accent-dim:rgba(232,255,71,0.1);
+  --accent:#e8ff47;--accent-dim:rgba(232,255,71,0.1);--accent-border:rgba(232,255,71,0.25);
   --green:#4ade80;--green-dim:rgba(74,222,128,0.1);
   --orange:#fb923c;--orange-dim:rgba(251,146,60,0.1);
   --red:#ff5c5c;--red-dim:rgba(255,92,92,0.1);
   --blue:#60a5fa;--blue-dim:rgba(96,165,250,0.1);
+  --purple:#a78bfa;--purple-dim:rgba(167,139,250,0.1);
   --reddit:#FF4500;
 }
 html,body{height:100%;font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);line-height:1.5;overflow:hidden}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes shimmer{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.8)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 
 /* ── TOP BAR ── */
 .topbar{
-  position:relative;z-index:20;
-  background:rgba(12,12,14,0.97);backdrop-filter:blur(20px);
+  height:52px;padding:0 1.5rem;
+  display:flex;align-items:center;gap:14px;
   border-bottom:1px solid var(--border);
-  padding:0 1.5rem;height:56px;
-  display:flex;align-items:center;gap:12px;
+  background:rgba(10,10,12,0.98);
 }
-.logo{font-family:'Space Mono',monospace;font-size:15px;font-weight:700;white-space:nowrap;letter-spacing:-0.5px}
+.logo{font-family:'Space Mono',monospace;font-size:14px;font-weight:700;letter-spacing:-0.5px;flex-shrink:0}
 .logo em{color:var(--accent);font-style:normal}
-.live-pill{
-  display:flex;align-items:center;gap:5px;
-  font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
-  color:var(--red);background:var(--red-dim);
-  padding:3px 8px 3px 6px;border-radius:20px;white-space:nowrap;flex-shrink:0;
-}
-.pulse{width:6px;height:6px;background:var(--red);border-radius:50%;animation:pulse 1.4s ease-in-out infinite}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.8)}}
-.count-badge{
-  font-size:11px;color:var(--text3);white-space:nowrap;flex-shrink:0;
-  font-family:'Space Mono',monospace;
-}
-.count-badge strong{color:var(--accent)}
-.search-wrap{flex:1;position:relative;max-width:400px;margin-left:auto}
-.search-ic{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none}
-#filter{
-  width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:9px;
-  padding:8px 11px 8px 33px;font-family:'Syne',sans-serif;font-size:13px;color:var(--text);
-  outline:none;transition:border-color .15s;
-}
-#filter:focus{border-color:var(--border2)}
-#filter::placeholder{color:var(--text3)}
-.refresh-btn{
-  display:flex;align-items:center;gap:6px;
-  background:var(--bg3);color:var(--text2);border:1px solid var(--border);border-radius:9px;
-  padding:7px 14px;font-family:'Syne',sans-serif;font-size:12px;font-weight:600;
-  cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0;
-}
-.refresh-btn:hover{border-color:var(--border2);color:var(--text)}
-.refresh-btn:disabled{opacity:.3;cursor:not-allowed}
+.logo span{font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;letter-spacing:.05em}
+.live-dot{width:6px;height:6px;background:var(--red);border-radius:50%;animation:pulse 1.4s ease-in-out infinite;flex-shrink:0}
 
-/* ── SPLIT LAYOUT ── */
-.split{display:flex;height:calc(100vh - 56px);overflow:hidden}
-
-/* ── MARKETS COLUMN ── */
-.markets-col{
-  flex:1;min-width:0;overflow-y:auto;
-  border-right:1px solid var(--border);
-  padding:0;
+/* ── SEARCH BAR ── */
+.search-bar{
+  flex:1;max-width:600px;margin:0 auto;
+  position:relative;display:flex;align-items:center;gap:8px;
 }
-.markets-col::-webkit-scrollbar{width:4px}
-.markets-col::-webkit-scrollbar-track{background:transparent}
-.markets-col::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
-
-.col-header{
-  position:sticky;top:0;z-index:5;
-  background:rgba(12,12,14,0.95);backdrop-filter:blur(10px);
-  border-bottom:1px solid var(--border);
-  padding:10px 1.25rem;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--text3);
-  display:flex;align-items:center;justify-content:space-between;
+.search-bar input{
+  flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;
+  padding:8px 14px 8px 38px;font-family:'Syne',sans-serif;font-size:14px;color:var(--text);
+  outline:none;transition:border-color .15s,box-shadow .15s;
 }
-
-.market-item{
-  padding:.9rem 1.25rem;border-bottom:1px solid var(--border);
-  cursor:pointer;transition:background .12s;display:flex;align-items:center;gap:12px;
+.search-bar input:focus{border-color:var(--accent-border);box-shadow:0 0 0 3px var(--accent-dim)}
+.search-bar input::placeholder{color:var(--text3)}
+.search-ic{position:absolute;left:12px;color:var(--text3);pointer-events:none}
+.go-btn{
+  flex-shrink:0;background:var(--accent);color:#0a0a0c;border:none;border-radius:9px;
+  padding:8px 18px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;
+  cursor:pointer;transition:opacity .15s;white-space:nowrap;
 }
-.market-item:hover{background:var(--bg2)}
-.market-item.active{background:var(--bg2);border-left:2px solid var(--accent);padding-left:calc(1.25rem - 2px)}
-.mi-prob{
-  flex-shrink:0;text-align:center;width:48px;
-}
-.mi-prob-n{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;line-height:1;display:block}
-.mi-prob-l{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3)}
-.mi-body{flex:1;min-width:0}
-.mi-show{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mi-q{font-size:13px;font-weight:500;color:var(--text);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.mi-meta{display:flex;align-items:center;gap:8px;margin-top:5px;font-size:11px;color:var(--text3)}
-.mi-bar{width:100%;height:2px;background:var(--bg4);border-radius:1px;margin-top:6px;overflow:hidden}
-.mi-bar-f{height:100%;border-radius:1px}
-.c-yes{color:var(--green)} .c-maybe{color:var(--orange)} .c-no{color:var(--red)}
-.f-yes{background:var(--green)} .f-maybe{background:var(--orange)} .f-no{background:var(--red)}
+.go-btn:hover{opacity:.85}
+.go-btn:disabled{opacity:.35;cursor:not-allowed}
 
-/* ── LEAKS PANEL ── */
-.leaks-col{
+/* ── SPLIT ── */
+.split{display:flex;height:calc(100vh - 52px);overflow:hidden}
+
+/* ── LEFT PANEL ── */
+.left{
   width:420px;flex-shrink:0;
-  overflow-y:auto;background:var(--bg);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
 }
-.leaks-col::-webkit-scrollbar{width:4px}
-.leaks-col::-webkit-scrollbar-track{background:transparent}
-.leaks-col::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
-
-.leaks-inner{padding:1rem 1.25rem}
-
-.placeholder{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  height:100%;padding:3rem 2rem;text-align:center;color:var(--text3);
+.left-header{
+  padding:10px 1.25rem;border-bottom:1px solid var(--border);
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--text3);
+  display:flex;justify-content:space-between;align-items:center;flex-shrink:0;
 }
-.placeholder-icon{font-size:40px;margin-bottom:1rem;line-height:1}
-.placeholder h3{font-size:16px;font-weight:700;color:var(--text2);margin-bottom:6px}
-.placeholder p{font-size:13px;line-height:1.6;max-width:260px}
+.left-scroll{flex:1;overflow-y:auto}
+.left-scroll::-webkit-scrollbar{width:3px}
+.left-scroll::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
+
+/* ── MARKET ROW ── */
+.mrow{
+  padding:.85rem 1.25rem;border-bottom:1px solid var(--border);
+  cursor:pointer;transition:background .1s;display:flex;gap:10px;align-items:flex-start;
+  animation:fadeIn .2s ease both;
+}
+.mrow:hover{background:var(--bg2)}
+.mrow.active{background:var(--bg2);border-left:2px solid var(--accent);padding-left:calc(1.25rem - 2px)}
+.prob-box{flex-shrink:0;text-align:center;padding-top:1px}
+.prob-n{font-family:'Space Mono',monospace;font-size:20px;font-weight:700;line-height:1;display:block}
+.prob-l{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3)}
+.mrow-body{flex:1;min-width:0}
+.mrow-q{font-size:13px;font-weight:500;color:var(--text);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:5px}
+.mrow-meta{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);flex-wrap:wrap}
+.mrow-bar{height:2px;background:var(--bg4);border-radius:1px;margin-top:6px;overflow:hidden}
+.mrow-bar-f{height:100%;border-radius:1px}
+.tag{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:2px 6px;border-radius:4px}
+
+/* ── RIGHT PANEL ── */
+.right{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.right-scroll{flex:1;overflow-y:auto}
+.right-scroll::-webkit-scrollbar{width:3px}
+.right-scroll::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
+
+/* ── EMPTY STATE ── */
+.empty{
+  height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:3rem;text-align:center;color:var(--text3);
+}
+.empty-icon{font-size:44px;margin-bottom:1.2rem;line-height:1}
+.empty h2{font-size:18px;font-weight:800;color:var(--text2);margin-bottom:8px;letter-spacing:-.3px}
+.empty p{font-size:13px;line-height:1.7;max-width:320px;color:var(--text3)}
+.suggestions{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-top:1.4rem}
+.sug{
+  background:var(--bg3);border:1px solid var(--border);border-radius:20px;
+  padding:5px 14px;font-size:12px;color:var(--text2);cursor:pointer;transition:all .15s;
+}
+.sug:hover{border-color:var(--accent-border);color:var(--accent);background:var(--accent-dim)}
 
 /* ── SELECTED MARKET HEADER ── */
-.sel-header{
-  position:sticky;top:0;z-index:5;
-  background:rgba(12,12,14,0.97);backdrop-filter:blur(10px);
-  border-bottom:1px solid var(--border);
-  padding:.85rem 1.25rem;
+.sel-head{
+  padding:1rem 1.5rem .9rem;border-bottom:1px solid var(--border);
+  background:var(--bg);flex-shrink:0;
 }
-.sel-q{font-size:13px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:4px}
-.sel-meta{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text3)}
+.sel-q{font-size:15px;font-weight:700;color:var(--text);line-height:1.4;margin-bottom:6px;letter-spacing:-.2px}
+.sel-meta-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .sel-prob{font-family:'Space Mono',monospace;font-size:13px;font-weight:700}
-.reddit-label{
-  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);
-  margin:1rem 0 8px;display:flex;align-items:center;gap:8px;
-}
-.reddit-label::after{content:'';flex:1;height:1px;background:var(--border)}
+.sel-link{font-size:11px;color:var(--accent);text-decoration:none;font-weight:600;margin-left:auto}
+.sel-link:hover{opacity:.7}
 
-/* ── LEAK CARD ── */
-.lcard{background:var(--bg2);border:1px solid var(--border);border-radius:12px;margin-bottom:8px;overflow:hidden;transition:border-color .15s}
-.lcard:hover{border-color:var(--border2)}
-.lcard-top{padding:.9rem 1.1rem .75rem;display:flex;align-items:flex-start;gap:10px}
-.lmeta{flex:1}
-.ltitle{font-size:13px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:4px}
-.lsub-row{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);flex-wrap:wrap}
-.rname{color:var(--reddit);font-weight:700}
-.ltype{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:2px 6px;border-radius:4px}
-.lt-cast{background:var(--blue-dim);color:var(--blue)}
-.lt-plot{background:var(--accent-dim);color:var(--accent)}
-.lt-date{background:var(--green-dim);color:var(--green)}
-.lt-renew{background:var(--green-dim);color:var(--green)}
-.lt-cancel{background:var(--red-dim);color:var(--red)}
-.conf-col{text-align:right;flex-shrink:0;min-width:46px}
-.conf-n{font-family:'Space Mono',monospace;font-size:17px;font-weight:700;display:block;line-height:1}
-.conf-l{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3)}
-.lbody{border-top:1px solid var(--border);background:var(--bg3);padding:9px 1.1rem 10px}
-.lcontent{font-size:12px;color:var(--text2);line-height:1.65}
-.rlink{
-  display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--reddit);
-  text-decoration:none;margin-top:6px;opacity:.8;transition:opacity .15s;
+/* ── ALPHA SECTION ── */
+.alpha-header{
+  padding:.85rem 1.5rem .6rem;
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--text3);
+  display:flex;align-items:center;gap:8px;
 }
+.alpha-header::after{content:'';flex:1;height:1px;background:var(--border)}
+.alpha-desc{padding:0 1.5rem .85rem;font-size:12px;color:var(--text3);line-height:1.6}
+
+/* ── ALPHA CARD ── */
+.acard{margin:0 1.25rem 10px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:border-color .15s;animation:fadeIn .25s ease both}
+.acard:hover{border-color:var(--border2)}
+.acard-top{padding:.9rem 1.1rem .75rem;display:flex;gap:10px;align-items:flex-start}
+.acard-body{flex:1;min-width:0}
+.acard-title{font-size:13px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:5px}
+.acard-meta{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);flex-wrap:wrap}
+.rname{color:var(--reddit);font-weight:700;font-size:11px}
+.age{font-size:10px;color:var(--text3)}
+.alpha-col{flex-shrink:0;text-align:right;min-width:52px}
+.alpha-n{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;line-height:1;display:block}
+.alpha-l{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3)}
+.acard-content{border-top:1px solid var(--border);background:var(--bg3);padding:9px 1.1rem 10px}
+.acard-text{font-size:12px;color:var(--text2);line-height:1.65}
+.rlink{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--reddit);text-decoration:none;margin-top:6px;opacity:.8}
 .rlink:hover{opacity:1}
 
-/* ── LOADING ── */
-.loading-grid{display:flex;flex-direction:column}
-.skel-item{padding:.9rem 1.25rem;border-bottom:1px solid var(--border)}
+/* type tags */
+.t-insider{background:var(--accent-dim);color:var(--accent)}
+.t-rumor{background:var(--orange-dim);color:var(--orange)}
+.t-analysis{background:var(--blue-dim);color:var(--blue)}
+.t-news{background:var(--green-dim);color:var(--green)}
+.t-discussion{background:var(--bg4);color:var(--text3)}
+
+/* prob colors */
+.c-yes{color:var(--green)}.c-maybe{color:var(--orange)}.c-no{color:var(--red)}
+.f-yes{background:var(--green)}.f-maybe{background:var(--orange)}.f-no{background:var(--red)}
+
+/* ── SKELETONS ── */
+.skel-list{display:flex;flex-direction:column}
+.skel-row{padding:.85rem 1.25rem;border-bottom:1px solid var(--border);display:flex;gap:10px}
 .skel-r{background:var(--bg3);border-radius:3px;animation:shimmer 1.6s ease-in-out infinite}
-@keyframes shimmer{0%,100%{opacity:1}50%{opacity:.3}}
-.skel-leaks{padding:1rem 1.25rem;display:flex;flex-direction:column;gap:10px}
+.skel-cards{padding:1rem 1.25rem;display:flex;flex-direction:column;gap:10px}
 .skel-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1rem}
 
-/* ── EMPTY / ERROR ── */
-.no-res{text-align:center;padding:2.5rem 1.25rem;color:var(--text2);font-size:13px}
+/* ── STATES ── */
+.no-res{text-align:center;padding:2.5rem 1.5rem;color:var(--text2);font-size:13px}
 .no-res strong{display:block;font-size:15px;font-weight:700;color:var(--text);margin-bottom:5px}
-.err-box{background:var(--red-dim);border:1px solid rgba(255,92,92,.2);border-radius:10px;padding:.9rem 1.1rem;color:var(--red);font-size:13px;margin:1rem 1.25rem;display:flex;align-items:flex-start;gap:8px;line-height:1.5}
+.err{background:var(--red-dim);border:1px solid rgba(255,92,92,.2);border-radius:10px;padding:.85rem 1.1rem;color:var(--red);font-size:13px;margin:.75rem 1.25rem;line-height:1.5}
 
 /* ── MOBILE ── */
 @media(max-width:700px){
   html,body{overflow:auto}
   .split{flex-direction:column;height:auto;overflow:visible}
-  .markets-col{border-right:none;border-bottom:1px solid var(--border);overflow:visible;max-height:50vh;overflow-y:auto}
-  .leaks-col{width:100%}
-  .topbar{gap:8px;padding:0 1rem}
-  .logo{font-size:13px}
-  .count-badge{display:none}
-  .search-wrap{max-width:none}
+  .left{width:100%;border-right:none;border-bottom:1px solid var(--border);max-height:50vh}
+  .right{height:auto;overflow:visible}
+  .right-scroll{overflow:visible}
+  .topbar{padding:0 1rem;gap:8px}
+  .logo span{display:none}
+  .search-bar{max-width:none}
 }
 </style>
 </head>
 <body>
 
 <div class="topbar">
-  <div class="logo">TV<em>pred</em></div>
-  <div class="live-pill"><div class="pulse"></div>LIVE</div>
-  <span class="count-badge" id="mcount">Chargement…</span>
-  <div class="search-wrap" style="margin-left:auto">
-    <span class="search-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
-    <input type="text" id="filter" placeholder="Filtrer les marchés…" oninput="filterMarkets()" autocomplete="off">
+  <div class="logo">Alpha<em>Finder</em> <span>Polymarket × Reddit</span></div>
+  <div class="live-dot"></div>
+  <div class="search-bar">
+    <span class="search-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
+    <input type="text" id="qinput" placeholder="Stranger Things, 2026 election, Bitcoin ETF, GTA VI…" autocomplete="off">
+    <button class="go-btn" id="goBtn" onclick="doSearch()">Rechercher</button>
   </div>
-  <button class="refresh-btn" id="refreshBtn" onclick="loadMarkets()">
-    <svg id="refreshIc" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
-    Actualiser
-  </button>
 </div>
 
 <div class="split">
 
-  <div class="markets-col" id="marketsCol">
-    <div class="col-header">
-      <span>Marchés Polymarket actifs</span>
-      <span id="filteredCount"></span>
+  <div class="left">
+    <div class="left-header">
+      <span>Marchés Polymarket</span>
+      <span id="mCount" style="font-family:'Space Mono',monospace;color:var(--text2)"></span>
     </div>
-    <div id="marketsList">
-      <div class="loading-grid" id="mLoading">
-        ${[1,2,3,4,5,6,7,8].map(()=>`<div class="skel-item"><div class="skel-r" style="width:60px;height:8px;margin-bottom:8px"></div><div class="skel-r" style="width:90%;height:12px;margin-bottom:6px"></div><div class="skel-r" style="width:60%;height:10px"></div></div>`).join('')}
+    <div class="left-scroll" id="marketsList">
+      <div class="empty">
+        <div class="empty-icon">🔍</div>
+        <h2>Trouve l'alpha</h2>
+        <p>Recherche n'importe quel sujet pour voir les marchés Polymarket actifs et les leaks Reddit associés.</p>
+        <div class="suggestions">
+          <div class="sug" onclick="go('Trump')">Trump</div>
+          <div class="sug" onclick="go('Stranger Things')">Stranger Things</div>
+          <div class="sug" onclick="go('Bitcoin')">Bitcoin</div>
+          <div class="sug" onclick="go('GTA VI')">GTA VI</div>
+          <div class="sug" onclick="go('Ukraine')">Ukraine</div>
+          <div class="sug" onclick="go('AI')">AI</div>
+          <div class="sug" onclick="go('Netflix')">Netflix</div>
+          <div class="sug" onclick="go('Fed rate')">Fed rate</div>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="leaks-col" id="leaksCol">
-    <div class="placeholder" id="leaksPlaceholder">
-      <div class="placeholder-icon">👈</div>
-      <h3>Sélectionne un marché</h3>
-      <p>Clique sur un marché Polymarket pour voir les leaks Reddit associés.</p>
+  <div class="right">
+    <div class="right-scroll" id="rightPanel">
+      <div class="empty" style="height:100%">
+        <div class="empty-icon">👈</div>
+        <h2>Sélectionne un marché</h2>
+        <p>Clique sur un marché pour voir les posts Reddit avec de l'alpha potentiel, triés par score de confiance.</p>
+      </div>
     </div>
-    <div id="leaksContent" style="display:none"></div>
   </div>
 
 </div>
 
 <script>
 let allMarkets = [];
-let activeIdx = -1;
+let activeIdx  = -1;
 
-function pClass(p){ return p>=65?'yes':p>=40?'maybe':'no'; }
-function cClass(c){ return c>=70?'yes':c>=45?'maybe':'no'; }
-const cLabel = { yes:'Fiable', maybe:'Plausible', no:'Douteux' };
-const cColor  = { yes:'#4ade80', maybe:'#fb923c', no:'#ff5c5c' };
-const typeMap  = {
-  casting:      {l:'Casting',       c:'lt-cast'},
-  plot:         {l:'Intrigue',      c:'lt-plot'},
-  release_date: {l:'Date sortie',   c:'lt-date'},
-  renewal:      {l:'Renouvellement',c:'lt-renew'},
-  cancellation: {l:'Annulation',    c:'lt-cancel'}
-};
+function pc(p){ return p>=65?'yes':p>=40?'maybe':'no'; }
+const typeLabel = { insider:'Insider', rumor:'Rumeur', analysis:'Analyse', news:'News', discussion:'Discussion' };
+const typeClass = { insider:'t-insider', rumor:'t-rumor', analysis:'t-analysis', news:'t-news', discussion:'t-discussion' };
 
 function esc(s){ return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''; }
 
-async function loadMarkets(){
-  const btn = document.getElementById('refreshBtn');
-  const ic  = document.getElementById('refreshIc');
-  btn.disabled = true;
-  ic.style.animation = 'spin .7s linear infinite';
-  if(!document.getElementById('_spin')){
-    const s=document.createElement('style');s.id='_spin';
-    s.textContent='@keyframes spin{to{transform:rotate(360deg)}}';
-    document.head.appendChild(s);
-  }
-  document.getElementById('marketsList').innerHTML = `<div class="loading-grid">${[1,2,3,4,5,6,7,8].map(()=>`<div class="skel-item"><div class="skel-r" style="width:60px;height:8px;margin-bottom:8px"></div><div class="skel-r" style="width:90%;height:12px;margin-bottom:6px"></div><div class="skel-r" style="width:60%;height:10px"></div></div>`).join('')}</div>`;
-  document.getElementById('mcount').textContent = 'Chargement…';
-  resetLeaks();
+function fmtAge(h){
+  if(h<1) return '<1h';
+  if(h<24) return `${h}h`;
+  return `${Math.round(h/24)}j`;
+}
+
+function alphaColor(a){ return a>=70?'var(--accent)':a>=45?'var(--orange)':'var(--text2)'; }
+
+function go(q){ document.getElementById('qinput').value=q; doSearch(); }
+document.getElementById('qinput').addEventListener('keydown', e=>{ if(e.key==='Enter') doSearch(); });
+
+async function doSearch(){
+  const q = document.getElementById('qinput').value.trim();
+  if(!q) return;
+
+  const btn = document.getElementById('goBtn');
+  btn.disabled = true; btn.textContent = '…';
+  activeIdx = -1;
+
+  // Loading skeletons — markets list
+  document.getElementById('marketsList').innerHTML = `
+    <div class="skel-list">
+      ${[1,2,3,4,5,6].map(()=>`<div class="skel-row">
+        <div style="flex-shrink:0"><div class="skel-r" style="width:36px;height:22px;margin-bottom:4px"></div><div class="skel-r" style="width:24px;height:7px"></div></div>
+        <div style="flex:1"><div class="skel-r" style="width:90%;height:11px;margin-bottom:6px"></div><div class="skel-r" style="width:60%;height:9px"></div></div>
+      </div>`).join('')}
+    </div>`;
+
+  // Reset right panel
+  document.getElementById('rightPanel').innerHTML = `<div class="empty" style="height:100%"><div class="empty-icon">⏳</div><h2>Recherche en cours…</h2><p>Fetching Polymarket markets for "${esc(q)}"</p></div>`;
+  document.getElementById('mCount').textContent = '';
 
   try {
-    const res = await fetch('/api/markets');
+    const res = await fetch(`/api/markets?q=${encodeURIComponent(q)}`);
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     allMarkets = json.markets || [];
-    document.getElementById('mcount').innerHTML = `<strong>${allMarkets.length}</strong> marchés actifs`;
-    renderMarkets(allMarkets);
+    document.getElementById('mCount').textContent = allMarkets.length;
+    renderMarkets();
+    if(!allMarkets.length){
+      document.getElementById('rightPanel').innerHTML = `<div class="empty" style="height:100%"><div class="empty-icon">🤷</div><h2>Aucun marché</h2><p>Aucun marché Polymarket actif trouvé pour "${esc(q)}".</p></div>`;
+    } else {
+      document.getElementById('rightPanel').innerHTML = `<div class="empty" style="height:100%"><div class="empty-icon">👈</div><h2>Sélectionne un marché</h2><p>${allMarkets.length} marchés trouvés, triés par probabilité. Clique pour voir l'alpha Reddit.</p></div>`;
+    }
   } catch(err){
-    document.getElementById('marketsList').innerHTML = `<div class="err-box"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><div><strong>Erreur :</strong> ${esc(err.message)}</div></div>`;
-    document.getElementById('mcount').textContent = 'Erreur';
+    document.getElementById('marketsList').innerHTML = `<div class="err">Erreur : ${esc(err.message)}</div>`;
+    document.getElementById('mCount').textContent = '!';
   } finally {
-    btn.disabled = false;
-    ic.style.animation = '';
+    btn.disabled=false; btn.textContent='Rechercher';
   }
 }
 
-function filterMarkets(){
-  const q = document.getElementById('filter').value.trim();
-  renderMarkets(getFilteredList(), !!q);
-}
-
-function renderMarkets(list, filtered=false){
-  const el = document.getElementById('marketsList');
-  const fc = document.getElementById('filteredCount');
-  fc.textContent = filtered ? `${list.length} résultats` : '';
-
-  if(!list.length){
-    el.innerHTML = `<div class="no-res"><strong>Aucun marché</strong>Essaie un autre filtre.</div>`;
+function renderMarkets(){
+  if(!allMarkets.length){
+    document.getElementById('marketsList').innerHTML = `<div class="no-res"><strong>Aucun résultat</strong>Essaie un autre terme.</div>`;
     return;
   }
-  el.innerHTML = list.map(m => {
-    const idx = allMarkets.indexOf(m);
-    const pc  = pClass(m.probability);
-    return `<div class="market-item${idx===activeIdx?' active':''}" data-idx="${idx}" onclick="selectMarket(${idx})">
-      <div class="mi-prob">
-        <span class="mi-prob-n c-${pc}">${m.probability}%</span>
-        <span class="mi-prob-l">OUI</span>
+  document.getElementById('marketsList').innerHTML = allMarkets.map((m,i)=>{
+    const p = m.probability, cl = pc(p);
+    return `<div class="mrow${i===activeIdx?' active':''}" onclick="selectMarket(${i})">
+      <div class="prob-box">
+        <span class="prob-n c-${cl}">${p}%</span>
+        <span class="prob-l">OUI</span>
       </div>
-      <div class="mi-body">
-        <div class="mi-show">${esc(m.show)}</div>
-        <div class="mi-q">${esc(m.question)}</div>
-        <div class="mi-meta">
+      <div class="mrow-body">
+        <div class="mrow-q">${esc(m.question)}</div>
+        <div class="mrow-meta">
           <span>${esc(m.volume)} vol.</span>
-          <span>·</span>
-          <span>${esc(m.end_date)}</span>
-          <a href="${esc(m.polymarket_url||'https://polymarket.com/markets?_c=entertainment')}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="margin-left:auto;color:var(--accent);font-size:10px;font-weight:700;text-decoration:none">↗ PM</a>
+          <span>·</span><span>${esc(m.end_date)}</span>
         </div>
-        <div class="mi-bar"><div class="mi-bar-f f-${pc}" style="width:${m.probability}%"></div></div>
+        <div class="mrow-bar"><div class="mrow-bar-f f-${cl}" style="width:${p}%"></div></div>
       </div>
     </div>`;
   }).join('');
 }
 
-function resetLeaks(){
-  activeIdx = -1;
-  document.getElementById('leaksPlaceholder').style.display = '';
-  document.getElementById('leaksContent').style.display = 'none';
-  document.getElementById('leaksContent').innerHTML = '';
-}
-
 async function selectMarket(idx){
+  if(idx===activeIdx){ activeIdx=-1; renderMarkets(); document.getElementById('rightPanel').innerHTML=`<div class="empty" style="height:100%"><div class="empty-icon">👈</div><h2>Sélectionne un marché</h2><p>Clique pour voir l'alpha Reddit.</p></div>`; return; }
+  activeIdx=idx;
+  renderMarkets();
+
   const m = allMarkets[idx];
-  if(!m) return;
+  const cl = pc(m.probability);
 
-  // Toggle off if same
-  if(activeIdx === idx){ resetLeaks(); renderMarkets(getFilteredList()); return; }
-  activeIdx = idx;
-  renderMarkets(getFilteredList(), !!document.getElementById('filter').value.trim());
-
-  const placeholder = document.getElementById('leaksPlaceholder');
-  const content     = document.getElementById('leaksContent');
-  placeholder.style.display = 'none';
-  content.style.display = '';
-
-  const pc = pClass(m.probability);
-  content.innerHTML = `
-    <div class="sel-header">
+  document.getElementById('rightPanel').innerHTML = `
+    <div class="sel-head">
       <div class="sel-q">${esc(m.question)}</div>
-      <div class="sel-meta">
-        <span class="sel-prob c-${pc}">${m.probability}%</span>
-        <span>·</span>
-        <span style="font-size:10px">${esc(m.show)}</span>
+      <div class="sel-meta-row">
+        <span class="sel-prob c-${cl}">${m.probability}% OUI</span>
+        <span style="font-size:11px;color:var(--text3)">·</span>
+        <span style="font-size:11px;color:var(--text3)">${esc(m.volume)} vol. · ${esc(m.end_date)}</span>
+        <a class="sel-link" href="${esc(m.polymarket_url||'https://polymarket.com')}" target="_blank" rel="noopener">↗ Polymarket</a>
       </div>
     </div>
-    <div class="leaks-inner">
-      <div class="reddit-label">Leaks Reddit</div>
-      <div id="leaksBody">
-        <div class="skel-leaks">
-          ${[1,2,3].map(()=>`<div class="skel-card"><div class="skel-r" style="width:80%;height:11px;margin-bottom:8px"></div><div class="skel-r" style="width:55%;height:9px;margin-bottom:6px"></div><div class="skel-r" style="width:70%;height:9px"></div></div>`).join('')}
-        </div>
+    <div class="alpha-header">Alpha Reddit</div>
+    <div class="alpha-desc">Posts filtrés par pertinence × engagement · score de confiance basé sur upvotes + récence</div>
+    <div id="alphaBody">
+      <div class="skel-cards">
+        ${[1,2,3,4].map(()=>`<div class="skel-card"><div class="skel-r" style="width:75%;height:11px;margin-bottom:7px"></div><div class="skel-r" style="width:50%;height:9px;margin-bottom:5px"></div><div class="skel-r" style="width:65%;height:9px"></div></div>`).join('')}
       </div>
     </div>`;
 
   try {
-    const res = await fetch(`/api/leaks?q=${encodeURIComponent(m.show)}`);
+    const hint = m.search_hint || m.question.split(' ').slice(0,4).join(' ');
+    const res = await fetch(`/api/leaks?q=${encodeURIComponent(hint)}`);
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
-    renderLeaks(json.leaks || [], m.show);
+    renderAlpha(json.leaks||[], m.probability);
   } catch(err){
-    document.getElementById('leaksBody').innerHTML = `<div class="err-box"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>${esc(err.message)}</div>`;
+    document.getElementById('alphaBody').innerHTML = `<div class="err">Erreur Reddit : ${esc(err.message)}</div>`;
   }
 }
 
-function getFilteredList(){
-  const q = document.getElementById('filter').value.toLowerCase().trim();
-  return q ? allMarkets.filter(m => m.question.toLowerCase().includes(q) || m.show.toLowerCase().includes(q)) : allMarkets;
-}
-
-function renderLeaks(leaks, show){
-  const el = document.getElementById('leaksBody');
+function renderAlpha(leaks, marketProb){
+  const el = document.getElementById('alphaBody');
   if(!leaks.length){
-    el.innerHTML = `<div class="no-res"><strong>Aucun leak trouvé</strong>Pas de discussions récentes sur Reddit pour "${esc(show)}".</div>`;
+    el.innerHTML = `<div class="no-res"><strong>Aucun post trouvé</strong>Pas de discussions Reddit avec de l'alpha sur ce sujet.</div>`;
     return;
   }
-  el.innerHTML = leaks.map(l=>{
-    const cc = cClass(l.confidence);
-    const ti = typeMap[l.spoiler_type]||{l:'Leak',c:'lt-plot'};
-    const rurl = l.reddit_url||`https://www.reddit.com/search/?q=${encodeURIComponent(l.show)}`;
-    return `<div class="lcard">
-      <div class="lcard-top">
-        <div class="lmeta">
-          <div class="ltitle">${esc(l.title)}</div>
-          <div class="lsub-row">
+  // Compute alpha score per post
+  const withAlpha = leaks.map(l => {
+    const uncertainty = 1 - Math.abs(marketProb/100 - 0.5) * 2;
+    const alpha = Math.round(l.confidence * (0.5 + 0.5 * uncertainty));
+    return { ...l, alpha };
+  }).sort((a,b)=>b.alpha-a.alpha);
+
+  el.innerHTML = withAlpha.map((l,i)=>{
+    const tc = typeClass[l.post_type]||'t-discussion';
+    const tl = typeLabel[l.post_type]||'Discussion';
+    const ac = alphaColor(l.alpha);
+    return `<div class="acard" style="animation-delay:${i*40}ms">
+      <div class="acard-top">
+        <div class="acard-body">
+          <div class="acard-title">${esc(l.title)}</div>
+          <div class="acard-meta">
             <span class="rname">${esc(l.subreddit)}</span>
             <span>·</span><span>${esc(l.upvotes)} upvotes</span>
-            <span>·</span><span class="ltype ${ti.c}">${ti.l}</span>
+            <span>·</span><span class="age">${fmtAge(l.age_h)}</span>
+            <span class="tag ${tc}">${tl}</span>
           </div>
         </div>
-        <div class="conf-col">
-          <span class="conf-n" style="color:${cColor[cc]}">${l.confidence}%</span>
-          <span class="conf-l">${cLabel[cc]}</span>
+        <div class="alpha-col">
+          <span class="alpha-n" style="color:${ac}">${l.alpha}</span>
+          <span class="alpha-l">Alpha</span>
         </div>
       </div>
-      <div class="lbody">
-        <div class="lcontent">${esc(l.content)}</div>
-        <a class="rlink" href="${esc(rurl)}" target="_blank" rel="noopener">
+      <div class="acard-content">
+        <div class="acard-text">${esc(l.content)}</div>
+        <a class="rlink" href="${esc(l.reddit_url)}" target="_blank" rel="noopener">
           <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor"><path d="M10 0C4.478 0 0 4.478 0 10c0 4.419 2.865 8.166 6.839 9.489.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 10 4.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.749 0 .268.18.58.688.482A10.019 10.019 0 0 0 20 10c0-5.522-4.478-10-10-10z"/></svg>
           Voir sur Reddit
         </a>
@@ -405,9 +405,6 @@ function renderLeaks(leaks, show){
     </div>`;
   }).join('');
 }
-
-// Auto-load on start
-loadMarkets();
 </script>
 </body>
 </html>
