@@ -93,7 +93,16 @@ async function searchMarkets(query) {
 
   if (gammaRes.status === 'fulfilled') {
     const raw = gammaRes.value;
-    all = all.concat(Array.isArray(raw) ? raw : (raw.markets || []));
+    const gammaAll = Array.isArray(raw) ? raw : (raw.markets || []);
+    // Gamma ignores q= param — filter client-side
+    const ql = query.toLowerCase().split(' ').filter(w => w.length > 2);
+    const gammaFiltered = ql.length
+      ? gammaAll.filter(m => {
+          const title = (m.question || m.groupItemTitle || m.title || '').toLowerCase();
+          return ql.some(w => title.includes(w));
+        })
+      : gammaAll;
+    all = all.concat(gammaFiltered);
   }
 
   if (clobRes.status === 'fulfilled') {
