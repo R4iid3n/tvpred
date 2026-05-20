@@ -263,6 +263,109 @@ function buildContent(p) {
   return `Post avec ${p.num_comments || 0} commentaires. Score: ${p.score} upvotes. Posté dans r/${p.subreddit}.`;
 }
 
+// ── ALL TV MARKETS ────────────────────────────────────────────────────────────
+
+// TV-related keywords to identify show markets
+const TV_KEYWORDS = ['season', 'renewed', 'cancelled', 'canceled', 'episode', 'premiere', 'series', 'emmy', 'finale', 'show', 'streaming', 'netflix', 'hbo', 'hulu', 'disney', 'apple tv', 'amazon'];
+
+function isTvMarket(m) {
+  const text = ((m.question || m.groupItemTitle || m.title || '') + ' ' + (m.description || '')).toLowerCase();
+  return TV_KEYWORDS.some(kw => text.includes(kw));
+}
+
+async function fetchAllTvMarkets() {
+  const headers = { 'Accept': 'application/json', 'User-Agent': 'TVpred/1.0' };
+  const now = Date.now();
+
+  // Parallel fetch: broad entertainment + TV-specific keywords
+  const urls = [
+    'https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&tag=entertainment',
+    'https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&q=season',
+    'https://gamma-api.polymarket.com/markets?limit=50&active=true&closed=false&q=renewed',
+    'https://gamma-api.polymarket.com/markets?limit=50&active=true&closed=false&q=cancelled',
+    'https://gamma-api.polymarket.com/markets?limit=50&active=true&closed=false&q=premiere',
+  ];
+
+  const results = await Promise.allSettled(
+    urls.map(url => fetch(url, { headers, timeout: 10000 }).then(r => r.ok ? r.json() : []))
+  );
+
+  let all = [];
+  for (const r of results) {
+    if (r.status === 'fulfilled') {
+      const raw = r.value;
+      const arr = Array.isArray(raw) ? raw : (raw.markets || []);
+      all = all.concat(arr);
+    }
+  }
+
+  // Filter: active end date + TV-related
+  const active = all.filter(m => {
+    const end = m.endDate || m.end_date_iso;
+    if (end && new Date(end).getTime() <= now) return false;
+    return isTvMarket(m);
+  });
+
+  // Deduplicate
+  const seen = new Set();
+  const unique = active.filter(m => {
+    const key = (m.question || m.title || '').slice(0, 60);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  // Sort soonest end date first
+  unique.sort((a, b) => {
+    const da = new Date(a.endDate || a.end_date_iso || '9999').getTime();
+    const db = new Date(b.endDate || b.end_date_iso || '9999').getTime();
+    return da - db;
+  });
+
+  return unique.slice(0, 80).map(m => ({
+    show: extractShowName(m.question || m.groupItemTitle || m.title || '', ''),
+    question: m.question || m.groupItemTitle || m.title || 'Market',
+    probability: Math.min(99, Math.max(1, pct(
+      m.outcomePrices?.[0] ?? m.tokens?.[0]?.price ?? m.bestBid ?? 0.5
+    ))),
+    volume: fmtVol(parseFloat(m.volume || m.volumeNum || m.liquidityNum || 0)),
+    end_date: fmtDate(m.endDate || m.end_date_iso),
+    trend: calcTrend(m),
+    polymarket_url: m.url || `https://polymarket.com/event/${m.slug || m.conditionId || ''}`
+  }));
+}
+
+app.get('/api/markets', async (req, res) => {
+  console.log('[markets] fetch all TV markets');
+  try {
+    const markets = await fetchAllTvMarkets();
+    console.log(`  ${markets.length} TV markets found`);
+    res.json({ markets, timestamp: new Date().toISOString() });
+  } catch (err) {
+    console.error('[markets] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── LEAKS FOR SHOW ─────────────────────────────────────────────────────────────
+
+app.get('/api/leaks', async (req, res) => {
+  const { q } = req.query;
+  if (!q || q.trim().length < 2) {
+    return res.status(400).json({ error: 'Paramètre q requis' });
+  }
+  const query = q.trim();
+  console.log(`[leaks] "${query}"`);
+  try {
+    const leaks = await fetchRedditLeaks(query);
+    console.log(`  ${leaks.length} leaks`);
+    res.json({ leaks, timestamp: new Date().toISOString() });
+  } catch (err) {
+    console.error('[leaks] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── MAIN API ROUTE ────────────────────────────────────────────────────────────
 
 app.get('/api/search', async (req, res) => {

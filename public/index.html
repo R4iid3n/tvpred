@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TVpred — Paris TV & Leaks Reddit</title>
+<title>TVpred — Marchés TV & Leaks Reddit</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;500;700;800&display=swap" rel="stylesheet">
 <style>
@@ -19,18 +19,17 @@
   --blue:#60a5fa;--blue-dim:rgba(96,165,250,0.1);
   --reddit:#FF4500;
 }
-html{font-size:16px}
-body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
+html,body{height:100%;font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);line-height:1.5;overflow:hidden}
 
 /* ── TOP BAR ── */
 .topbar{
-  position:sticky;top:0;z-index:20;
-  background:rgba(12,12,14,0.94);backdrop-filter:blur(20px);
+  position:relative;z-index:20;
+  background:rgba(12,12,14,0.97);backdrop-filter:blur(20px);
   border-bottom:1px solid var(--border);
-  padding:0 1.5rem;height:58px;
-  display:flex;align-items:center;gap:14px;
+  padding:0 1.5rem;height:56px;
+  display:flex;align-items:center;gap:12px;
 }
-.logo{font-family:'Space Mono',monospace;font-size:15px;font-weight:700;white-space:nowrap;color:var(--text);letter-spacing:-0.5px}
+.logo{font-family:'Space Mono',monospace;font-size:15px;font-weight:700;white-space:nowrap;letter-spacing:-0.5px}
 .logo em{color:var(--accent);font-style:normal}
 .live-pill{
   display:flex;align-items:center;gap:5px;
@@ -40,130 +39,154 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 }
 .pulse{width:6px;height:6px;background:var(--red);border-radius:50%;animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.8)}}
-.search-wrap{flex:1;position:relative;max-width:520px}
-.search-ic{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none}
-.search-ic svg{display:block}
-#qinput{
-  width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;
-  padding:9px 12px 9px 36px;font-family:'Syne',sans-serif;font-size:14px;color:var(--text);
+.count-badge{
+  font-size:11px;color:var(--text3);white-space:nowrap;flex-shrink:0;
+  font-family:'Space Mono',monospace;
+}
+.count-badge strong{color:var(--accent)}
+.search-wrap{flex:1;position:relative;max-width:400px;margin-left:auto}
+.search-ic{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none}
+#filter{
+  width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:9px;
+  padding:8px 11px 8px 33px;font-family:'Syne',sans-serif;font-size:13px;color:var(--text);
   outline:none;transition:border-color .15s;
 }
-#qinput:focus{border-color:var(--border2)}
-#qinput::placeholder{color:var(--text3)}
-.run-btn{
-  display:flex;align-items:center;gap:7px;
-  background:var(--accent);color:#0c0c0e;border:none;border-radius:10px;
-  padding:9px 20px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;
-  cursor:pointer;white-space:nowrap;transition:opacity .15s;flex-shrink:0;
+#filter:focus{border-color:var(--border2)}
+#filter::placeholder{color:var(--text3)}
+.refresh-btn{
+  display:flex;align-items:center;gap:6px;
+  background:var(--bg3);color:var(--text2);border:1px solid var(--border);border-radius:9px;
+  padding:7px 14px;font-family:'Syne',sans-serif;font-size:12px;font-weight:600;
+  cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0;
 }
-.run-btn:hover{opacity:.85}
-.run-btn:disabled{opacity:.35;cursor:not-allowed}
+.refresh-btn:hover{border-color:var(--border2);color:var(--text)}
+.refresh-btn:disabled{opacity:.3;cursor:not-allowed}
 
-/* ── TABS ── */
-.tabs{background:var(--bg);border-bottom:1px solid var(--border);padding:0 1.5rem;display:flex;gap:0}
-.tab{
-  background:none;border:none;border-bottom:2px solid transparent;
-  padding:11px 16px;font-family:'Syne',sans-serif;font-size:13px;font-weight:500;
-  color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:6px;
-  transition:color .15s;white-space:nowrap;
+/* ── SPLIT LAYOUT ── */
+.split{display:flex;height:calc(100vh - 56px);overflow:hidden}
+
+/* ── MARKETS COLUMN ── */
+.markets-col{
+  flex:1;min-width:0;overflow-y:auto;
+  border-right:1px solid var(--border);
+  padding:0;
 }
-.tab:hover{color:var(--text)}
-.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
-.tab-n{font-size:11px;background:var(--bg3);color:var(--text3);border-radius:10px;padding:1px 7px;min-width:22px;text-align:center}
-.tab.on .tab-n{background:var(--accent-dim);color:var(--accent)}
+.markets-col::-webkit-scrollbar{width:4px}
+.markets-col::-webkit-scrollbar-track{background:transparent}
+.markets-col::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
 
-/* ── MAIN ── */
-.main{flex:1;padding:1.5rem;max-width:860px;margin:0 auto;width:100%}
-
-/* ── EMPTY ── */
-.empty{text-align:center;padding:4.5rem 2rem}
-.empty-icon{font-size:50px;color:var(--text3);margin-bottom:1.2rem;display:block;line-height:1}
-.empty h2{font-size:22px;font-weight:800;margin-bottom:10px;letter-spacing:-.5px}
-.empty p{font-size:14px;color:var(--text2);max-width:400px;margin:0 auto 1.8rem;line-height:1.7}
-.pills{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
-.pill{
-  background:var(--bg3);border:1px solid var(--border);border-radius:20px;
-  padding:6px 16px;font-size:13px;color:var(--text2);cursor:pointer;transition:all .15s;
+.col-header{
+  position:sticky;top:0;z-index:5;
+  background:rgba(12,12,14,0.95);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--border);
+  padding:10px 1.25rem;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--text3);
+  display:flex;align-items:center;justify-content:space-between;
 }
-.pill:hover{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
 
-/* ── LOADING ── */
-.loading{display:flex;flex-direction:column;gap:12px}
-.skel{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1.25rem}
-.skel-r{height:12px;background:var(--bg3);border-radius:4px;margin-bottom:10px;animation:shimmer 1.6s ease-in-out infinite}
-@keyframes shimmer{0%,100%{opacity:1}50%{opacity:.3}}
-
-/* ── SECTION LABEL ── */
-.sec-head{
-  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--text3);
-  margin:1.4rem 0 10px;display:flex;align-items:center;gap:8px;
+.market-item{
+  padding:.9rem 1.25rem;border-bottom:1px solid var(--border);
+  cursor:pointer;transition:background .12s;display:flex;align-items:center;gap:12px;
 }
-.sec-head::after{content:'';flex:1;height:1px;background:var(--border)}
-
-/* ── MARKET CARD ── */
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;margin-bottom:10px;overflow:hidden;transition:border-color .15s}
-.card:hover{border-color:var(--border2)}
-.card-top{padding:1rem 1.25rem .75rem;display:flex;align-items:flex-start;gap:12px}
-.show-tag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:3px 9px;border-radius:6px;white-space:nowrap;flex-shrink:0;margin-top:2px}
-.t0{background:rgba(232,255,71,.12);color:var(--accent)}
-.t1{background:var(--blue-dim);color:var(--blue)}
-.t2{background:var(--green-dim);color:var(--green)}
-.t3{background:var(--orange-dim);color:var(--orange)}
-.t4{background:var(--red-dim);color:var(--red)}
-.card-q{flex:1;font-size:15px;font-weight:500;line-height:1.45;color:var(--text)}
-.prob-col{text-align:right;flex-shrink:0;min-width:56px}
-.prob-n{font-family:'Space Mono',monospace;font-size:26px;font-weight:700;line-height:1;display:block}
-.prob-l{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3)}
+.market-item:hover{background:var(--bg2)}
+.market-item.active{background:var(--bg2);border-left:2px solid var(--accent);padding-left:calc(1.25rem - 2px)}
+.mi-prob{
+  flex-shrink:0;text-align:center;width:48px;
+}
+.mi-prob-n{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;line-height:1;display:block}
+.mi-prob-l{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3)}
+.mi-body{flex:1;min-width:0}
+.mi-show{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mi-q{font-size:13px;font-weight:500;color:var(--text);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mi-meta{display:flex;align-items:center;gap:8px;margin-top:5px;font-size:11px;color:var(--text3)}
+.mi-bar{width:100%;height:2px;background:var(--bg4);border-radius:1px;margin-top:6px;overflow:hidden}
+.mi-bar-f{height:100%;border-radius:1px}
 .c-yes{color:var(--green)} .c-maybe{color:var(--orange)} .c-no{color:var(--red)}
-.bar-row{padding:0 1.25rem}
-.bar-bg{width:100%;height:3px;background:var(--bg4);border-radius:2px;overflow:hidden}
-.bar-f{height:100%;border-radius:2px;transition:width .8s cubic-bezier(.16,1,.3,1)}
 .f-yes{background:var(--green)} .f-maybe{background:var(--orange)} .f-no{background:var(--red)}
-.card-foot{padding:8px 1.25rem 12px;display:flex;align-items:center;gap:14px;font-size:12px;color:var(--text3);flex-wrap:wrap}
-.foot-i{display:flex;align-items:center;gap:4px}
-.trend-up{color:var(--green)} .trend-down{color:var(--red)} .trend-flat{color:var(--text3)}
-.ext-link{
-  display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--accent);
-  text-decoration:none;margin-left:auto;transition:opacity .15s;font-weight:600;
+
+/* ── LEAKS PANEL ── */
+.leaks-col{
+  width:420px;flex-shrink:0;
+  overflow-y:auto;background:var(--bg);
 }
-.ext-link:hover{opacity:.7}
+.leaks-col::-webkit-scrollbar{width:4px}
+.leaks-col::-webkit-scrollbar-track{background:transparent}
+.leaks-col::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
+
+.leaks-inner{padding:1rem 1.25rem}
+
+.placeholder{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:100%;padding:3rem 2rem;text-align:center;color:var(--text3);
+}
+.placeholder-icon{font-size:40px;margin-bottom:1rem;line-height:1}
+.placeholder h3{font-size:16px;font-weight:700;color:var(--text2);margin-bottom:6px}
+.placeholder p{font-size:13px;line-height:1.6;max-width:260px}
+
+/* ── SELECTED MARKET HEADER ── */
+.sel-header{
+  position:sticky;top:0;z-index:5;
+  background:rgba(12,12,14,0.97);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--border);
+  padding:.85rem 1.25rem;
+}
+.sel-q{font-size:13px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:4px}
+.sel-meta{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text3)}
+.sel-prob{font-family:'Space Mono',monospace;font-size:13px;font-weight:700}
+.reddit-label{
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);
+  margin:1rem 0 8px;display:flex;align-items:center;gap:8px;
+}
+.reddit-label::after{content:'';flex:1;height:1px;background:var(--border)}
 
 /* ── LEAK CARD ── */
-.lcard{background:var(--bg2);border:1px solid var(--border);border-radius:14px;margin-bottom:10px;overflow:hidden;transition:border-color .15s}
+.lcard{background:var(--bg2);border:1px solid var(--border);border-radius:12px;margin-bottom:8px;overflow:hidden;transition:border-color .15s}
 .lcard:hover{border-color:var(--border2)}
-.lcard-top{padding:1rem 1.25rem .85rem;display:flex;align-items:flex-start;gap:12px}
+.lcard-top{padding:.9rem 1.1rem .75rem;display:flex;align-items:flex-start;gap:10px}
 .lmeta{flex:1}
-.ltitle{font-size:14px;font-weight:600;color:var(--text);line-height:1.45;margin-bottom:5px}
-.lsub-row{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text3);flex-wrap:wrap}
+.ltitle{font-size:13px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:4px}
+.lsub-row{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);flex-wrap:wrap}
 .rname{color:var(--reddit);font-weight:700}
-.ltype{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:2px 7px;border-radius:5px}
+.ltype{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:2px 6px;border-radius:4px}
 .lt-cast{background:var(--blue-dim);color:var(--blue)}
 .lt-plot{background:var(--accent-dim);color:var(--accent)}
 .lt-date{background:var(--green-dim);color:var(--green)}
 .lt-renew{background:var(--green-dim);color:var(--green)}
 .lt-cancel{background:var(--red-dim);color:var(--red)}
-.conf-col{text-align:right;flex-shrink:0;min-width:52px}
-.conf-n{font-family:'Space Mono',monospace;font-size:20px;font-weight:700;display:block;line-height:1}
-.conf-l{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3)}
-.lbody{border-top:1px solid var(--border);background:var(--bg3);padding:10px 1.25rem 12px}
-.lcontent{font-size:13px;color:var(--text2);line-height:1.65}
+.conf-col{text-align:right;flex-shrink:0;min-width:46px}
+.conf-n{font-family:'Space Mono',monospace;font-size:17px;font-weight:700;display:block;line-height:1}
+.conf-l{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3)}
+.lbody{border-top:1px solid var(--border);background:var(--bg3);padding:9px 1.1rem 10px}
+.lcontent{font-size:12px;color:var(--text2);line-height:1.65}
 .rlink{
   display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--reddit);
-  text-decoration:none;margin-top:7px;opacity:.8;transition:opacity .15s;
+  text-decoration:none;margin-top:6px;opacity:.8;transition:opacity .15s;
 }
 .rlink:hover{opacity:1}
 
-/* ── META ROW ── */
-.meta-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 2px}
-.meta-time{font-size:11px;color:var(--text3);font-family:'Space Mono',monospace}
-.warn-box{background:var(--orange-dim);border:1px solid rgba(251,146,60,.2);border-radius:10px;padding:.75rem 1rem;font-size:13px;color:var(--orange);margin-bottom:10px;display:flex;gap:8px;align-items:flex-start;line-height:1.5}
-.err-box{background:var(--red-dim);border:1px solid rgba(255,92,92,.2);border-radius:12px;padding:1rem 1.25rem;color:var(--red);font-size:14px;display:flex;align-items:flex-start;gap:10px;line-height:1.5}
+/* ── LOADING ── */
+.loading-grid{display:flex;flex-direction:column}
+.skel-item{padding:.9rem 1.25rem;border-bottom:1px solid var(--border)}
+.skel-r{background:var(--bg3);border-radius:3px;animation:shimmer 1.6s ease-in-out infinite}
+@keyframes shimmer{0%,100%{opacity:1}50%{opacity:.3}}
+.skel-leaks{padding:1rem 1.25rem;display:flex;flex-direction:column;gap:10px}
+.skel-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1rem}
 
-/* ── NO RESULTS ── */
-.no-res{text-align:center;padding:3rem;color:var(--text2);font-size:14px}
-.no-res strong{display:block;font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px}
+/* ── EMPTY / ERROR ── */
+.no-res{text-align:center;padding:2.5rem 1.25rem;color:var(--text2);font-size:13px}
+.no-res strong{display:block;font-size:15px;font-weight:700;color:var(--text);margin-bottom:5px}
+.err-box{background:var(--red-dim);border:1px solid rgba(255,92,92,.2);border-radius:10px;padding:.9rem 1.1rem;color:var(--red);font-size:13px;margin:1rem 1.25rem;display:flex;align-items:flex-start;gap:8px;line-height:1.5}
 
-@media(max-width:600px){.topbar{padding:0 1rem;gap:10px}.logo{font-size:13px}.main{padding:1rem}.prob-n{font-size:20px}}
+/* ── MOBILE ── */
+@media(max-width:700px){
+  html,body{overflow:auto}
+  .split{flex-direction:column;height:auto;overflow:visible}
+  .markets-col{border-right:none;border-bottom:1px solid var(--border);overflow:visible;max-height:50vh;overflow-y:auto}
+  .leaks-col{width:100%}
+  .topbar{gap:8px;padding:0 1rem}
+  .logo{font-size:13px}
+  .count-badge{display:none}
+  .search-wrap{max-width:none}
+}
 </style>
 </head>
 <body>
@@ -171,203 +194,225 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 <div class="topbar">
   <div class="logo">TV<em>pred</em></div>
   <div class="live-pill"><div class="pulse"></div>LIVE</div>
-  <div class="search-wrap">
-    <span class="search-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
-    <input type="text" id="qinput" placeholder="Stranger Things, Severance, The Bear…" autocomplete="off">
+  <span class="count-badge" id="mcount">Chargement…</span>
+  <div class="search-wrap" style="margin-left:auto">
+    <span class="search-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
+    <input type="text" id="filter" placeholder="Filtrer les marchés…" oninput="filterMarkets()" autocomplete="off">
   </div>
-  <button class="run-btn" id="runBtn" onclick="run()">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-    Analyser
+  <button class="refresh-btn" id="refreshBtn" onclick="loadMarkets()">
+    <svg id="refreshIc" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+    Actualiser
   </button>
 </div>
 
-<div class="tabs">
-  <button class="tab on" id="tab-all"     onclick="setTab('all')">Tout <span class="tab-n" id="n-all">0</span></button>
-  <button class="tab"    id="tab-markets" onclick="setTab('markets')">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
-    Polymarket <span class="tab-n" id="n-markets">0</span>
-  </button>
-  <button class="tab"    id="tab-leaks"   onclick="setTab('leaks')">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-    Reddit Leaks <span class="tab-n" id="n-leaks">0</span>
-  </button>
-</div>
+<div class="split">
 
-<div class="main" id="area">
-  <div class="empty">
-    <span class="empty-icon">📺</span>
-    <h2>Paris & leaks TV en temps réel</h2>
-    <p>Données live depuis Polymarket et Reddit — sans clé API, sans inscription.</p>
-    <div class="pills">
-      <div class="pill" onclick="go('Stranger Things')">Stranger Things</div>
-      <div class="pill" onclick="go('The Last of Us')">The Last of Us</div>
-      <div class="pill" onclick="go('House of the Dragon')">House of the Dragon</div>
-      <div class="pill" onclick="go('The Bear')">The Bear</div>
-      <div class="pill" onclick="go('Severance')">Severance</div>
-      <div class="pill" onclick="go('Andor')">Andor</div>
-      <div class="pill" onclick="go('White Lotus')">White Lotus</div>
-      <div class="pill" onclick="go('Yellowstone')">Yellowstone</div>
+  <div class="markets-col" id="marketsCol">
+    <div class="col-header">
+      <span>Marchés Polymarket actifs</span>
+      <span id="filteredCount"></span>
+    </div>
+    <div id="marketsList">
+      <div class="loading-grid" id="mLoading">
+        ${[1,2,3,4,5,6,7,8].map(()=>`<div class="skel-item"><div class="skel-r" style="width:60px;height:8px;margin-bottom:8px"></div><div class="skel-r" style="width:90%;height:12px;margin-bottom:6px"></div><div class="skel-r" style="width:60%;height:10px"></div></div>`).join('')}
+      </div>
     </div>
   </div>
+
+  <div class="leaks-col" id="leaksCol">
+    <div class="placeholder" id="leaksPlaceholder">
+      <div class="placeholder-icon">👈</div>
+      <h3>Sélectionne un marché</h3>
+      <p>Clique sur un marché Polymarket pour voir les leaks Reddit associés.</p>
+    </div>
+    <div id="leaksContent" style="display:none"></div>
+  </div>
+
 </div>
 
 <script>
-let tab = 'all';
-let data = { markets: [], leaks: [] };
-let lastQ = '', lastT = '';
+let allMarkets = [];
+let activeIdx = -1;
 
-const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? '' : '';  // same origin
-
-function go(q) { document.getElementById('qinput').value = q; run(); }
-document.getElementById('qinput').addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
-
-function setTab(t) {
-  tab = t;
-  ['all','markets','leaks'].forEach(x => document.getElementById('tab-'+x).classList.toggle('on', x===t));
-  if (data.markets.length || data.leaks.length) render();
-}
-
-function pClass(p) { return p >= 65 ? 'yes' : p >= 40 ? 'maybe' : 'no'; }
-function cClass(c) { return c >= 70 ? 'yes' : c >= 45 ? 'maybe' : 'no'; }
-const cLabel = { yes: 'Fiable', maybe: 'Plausible', no: 'Douteux' };
-const cColor = { yes: '#4ade80', maybe: '#fb923c', no: '#ff5c5c' };
-const tagMap = {};
-let tagIdx = 0;
-function getTag(s) { if (!tagMap[s]) tagMap[s] = 't' + (tagIdx++ % 5); return tagMap[s]; }
-
-const typeMap = {
-  casting:      { l:'Casting',         c:'lt-cast'   },
-  plot:         { l:'Intrigue',         c:'lt-plot'   },
-  release_date: { l:'Date de sortie',   c:'lt-date'   },
-  renewal:      { l:'Renouvellement',   c:'lt-renew'  },
-  cancellation: { l:'Annulation',       c:'lt-cancel' }
+function pClass(p){ return p>=65?'yes':p>=40?'maybe':'no'; }
+function cClass(c){ return c>=70?'yes':c>=45?'maybe':'no'; }
+const cLabel = { yes:'Fiable', maybe:'Plausible', no:'Douteux' };
+const cColor  = { yes:'#4ade80', maybe:'#fb923c', no:'#ff5c5c' };
+const typeMap  = {
+  casting:      {l:'Casting',       c:'lt-cast'},
+  plot:         {l:'Intrigue',      c:'lt-plot'},
+  release_date: {l:'Date sortie',   c:'lt-date'},
+  renewal:      {l:'Renouvellement',c:'lt-renew'},
+  cancellation: {l:'Annulation',    c:'lt-cancel'}
 };
 
-const trendSVG = {
-  up:     `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`,
-  down:   `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></svg>`,
-  stable: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>`
-};
-const trendTxt = { up:'En hausse', down:'En baisse', stable:'Stable' };
+function esc(s){ return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''; }
 
-function mCard(m) {
-  const pc = pClass(m.probability), tr = m.trend || 'stable';
-  return `<div class="card">
-    <div class="card-top">
-      <span class="show-tag ${getTag(m.show)}">${esc(m.show)}</span>
-      <div class="card-q">${esc(m.question)}</div>
-      <div class="prob-col">
-        <span class="prob-n c-${pc}">${m.probability}%</span>
-        <span class="prob-l">OUI</span>
-      </div>
-    </div>
-    <div class="bar-row"><div class="bar-bg"><div class="bar-f f-${pc}" style="width:${m.probability}%"></div></div></div>
-    <div class="card-foot">
-      <span class="foot-i"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>${esc(m.volume)} vol.</span>
-      <span class="foot-i"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>${esc(m.end_date)}</span>
-      <span class="foot-i trend-${tr}">${trendSVG[tr]} ${trendTxt[tr]}</span>
-      <a class="ext-link" href="${esc(m.polymarket_url||'https://polymarket.com/markets?_c=entertainment')}" target="_blank" rel="noopener">Polymarket <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
-    </div>
-  </div>`;
-}
-
-function lCard(l) {
-  const cc = cClass(l.confidence), ti = typeMap[l.spoiler_type] || { l:'Leak', c:'lt-plot' };
-  const rurl = l.reddit_url || `https://www.reddit.com/search/?q=${encodeURIComponent(l.show)}`;
-  return `<div class="lcard">
-    <div class="lcard-top">
-      <div class="lmeta">
-        <div class="ltitle">${esc(l.title)}</div>
-        <div class="lsub-row">
-          <span class="rname">${esc(l.subreddit)}</span>
-          <span>·</span><span>${esc(l.upvotes)} upvotes</span>
-          <span>·</span><span class="ltype ${ti.c}">${ti.l}</span>
-        </div>
-      </div>
-      <div class="conf-col">
-        <span class="conf-n" style="color:${cColor[cc]}">${l.confidence}%</span>
-        <span class="conf-l">${cLabel[cc]}</span>
-      </div>
-    </div>
-    <div class="lbody">
-      <div class="lcontent">${esc(l.content)}</div>
-      <a class="rlink" href="${esc(rurl)}" target="_blank" rel="noopener">
-        <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path d="M10 0C4.478 0 0 4.478 0 10c0 4.419 2.865 8.166 6.839 9.489.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 10 4.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.749 0 .268.18.58.688.482A10.019 10.019 0 0 0 20 10c0-5.522-4.478-10-10-10z"/></svg>
-        Voir sur Reddit
-      </a>
-    </div>
-  </div>`;
-}
-
-function esc(s) {
-  if (!s) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function showLoad() {
-  document.getElementById('area').innerHTML = `<div class="loading">${[300,220,265].map(w=>`<div class="skel"><div class="skel-r" style="width:${Math.round(w*.35)}px;height:10px"></div><div class="skel-r" style="width:${w}px"></div><div class="skel-r" style="width:${Math.round(w*.65)}px;margin-bottom:0"></div></div>`).join('')}</div>`;
-}
-
-function render() {
-  const area = document.getElementById('area');
-  let h = '';
-  if (lastT) h += `<div class="meta-row"><span class="meta-time">Mis à jour ${lastT} · "${esc(lastQ)}"</span></div>`;
-
-  const M = data.markets || [], L = data.leaks || [];
-
-  if (data.warnings?.length) {
-    h += `<div class="warn-box"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><div>${data.warnings.join(' | ')}</div></div>`;
-  }
-
-  if ((tab==='all'||tab==='markets') && M.length) {
-    if (tab==='all') h += `<div class="sec-head">Marchés prédictifs Polymarket</div>`;
-    M.forEach(m => h += mCard(m));
-  }
-  if ((tab==='all'||tab==='leaks') && L.length) {
-    if (tab==='all') h += `<div class="sec-head">Leaks & rumeurs Reddit</div>`;
-    L.forEach(l => h += lCard(l));
-  }
-  if (!M.length && !L.length) {
-    h += `<div class="no-res"><strong>Aucun résultat</strong>Essaie un autre titre ou vérifie que le serveur est lancé.</div>`;
-  }
-  area.innerHTML = h;
-}
-
-async function run() {
-  const q = document.getElementById('qinput').value.trim();
-  if (!q) return;
-  lastQ = q; lastT = new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-
-  const btn = document.getElementById('runBtn');
+async function loadMarkets(){
+  const btn = document.getElementById('refreshBtn');
+  const ic  = document.getElementById('refreshIc');
   btn.disabled = true;
-  btn.innerHTML = `<svg style="animation:spin .7s linear infinite" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Recherche…`;
-  if (!document.getElementById('_spin')) {
+  ic.style.animation = 'spin .7s linear infinite';
+  if(!document.getElementById('_spin')){
     const s=document.createElement('style');s.id='_spin';
     s.textContent='@keyframes spin{to{transform:rotate(360deg)}}';
     document.head.appendChild(s);
   }
-
-  showLoad();
+  document.getElementById('marketsList').innerHTML = `<div class="loading-grid">${[1,2,3,4,5,6,7,8].map(()=>`<div class="skel-item"><div class="skel-r" style="width:60px;height:8px;margin-bottom:8px"></div><div class="skel-r" style="width:90%;height:12px;margin-bottom:6px"></div><div class="skel-r" style="width:60%;height:10px"></div></div>`).join('')}</div>`;
+  document.getElementById('mcount').textContent = 'Chargement…';
+  resetLeaks();
 
   try {
-    const res = await fetch(`${API}/api/search?q=${encodeURIComponent(q)}`);
-    if (!res.ok) {
-      const e = await res.json().catch(()=>({}));
-      throw new Error(e.error || `HTTP ${res.status}`);
-    }
-    data = await res.json();
-    document.getElementById('n-all').textContent     = (data.markets?.length||0)+(data.leaks?.length||0);
-    document.getElementById('n-markets').textContent = data.markets?.length||0;
-    document.getElementById('n-leaks').textContent   = data.leaks?.length||0;
-    render();
-  } catch(err) {
-    document.getElementById('area').innerHTML = `<div class="err-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><div><strong>Erreur :</strong> ${esc(err.message)}<br><small style="opacity:.7">Le serveur Node.js tourne-t-il ? <code>node server.js</code></small></div></div>`;
+    const res = await fetch('/api/markets');
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    allMarkets = json.markets || [];
+    document.getElementById('mcount').innerHTML = `<strong>${allMarkets.length}</strong> marchés actifs`;
+    renderMarkets(allMarkets);
+  } catch(err){
+    document.getElementById('marketsList').innerHTML = `<div class="err-box"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><div><strong>Erreur :</strong> ${esc(err.message)}</div></div>`;
+    document.getElementById('mcount').textContent = 'Erreur';
   } finally {
     btn.disabled = false;
-    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg> Analyser`;
+    ic.style.animation = '';
   }
 }
+
+function filterMarkets(){
+  const q = document.getElementById('filter').value.toLowerCase().trim();
+  if(!q){ renderMarkets(allMarkets); return; }
+  const filtered = allMarkets.filter(m =>
+    m.question.toLowerCase().includes(q) || m.show.toLowerCase().includes(q)
+  );
+  renderMarkets(filtered, true);
+}
+
+function renderMarkets(list, filtered=false){
+  const el = document.getElementById('marketsList');
+  const fc = document.getElementById('filteredCount');
+  if(filtered) fc.textContent = `${list.length} résultats`;
+  else fc.textContent = '';
+
+  if(!list.length){
+    el.innerHTML = `<div class="no-res"><strong>Aucun marché</strong>Essaie un autre filtre.</div>`;
+    return;
+  }
+  el.innerHTML = list.map((m,i)=>{
+    const pc = pClass(m.probability);
+    return `<div class="market-item${i===activeIdx?' active':''}" onclick="selectMarket(${allMarkets.indexOf(m)},${JSON.stringify(m.show).replace(/</g,'\\u003c')},${JSON.stringify(m.question).replace(/</g,'\\u003c')},${m.probability})">
+      <div class="mi-prob">
+        <span class="mi-prob-n c-${pc}">${m.probability}%</span>
+        <span class="mi-prob-l">OUI</span>
+      </div>
+      <div class="mi-body">
+        <div class="mi-show">${esc(m.show)}</div>
+        <div class="mi-q">${esc(m.question)}</div>
+        <div class="mi-meta">
+          <span>${esc(m.volume)} vol.</span>
+          <span>·</span>
+          <span>${esc(m.end_date)}</span>
+          <a href="${esc(m.polymarket_url||'https://polymarket.com/markets?_c=entertainment')}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="margin-left:auto;color:var(--accent);font-size:10px;font-weight:700;text-decoration:none">↗ PM</a>
+        </div>
+        <div class="mi-bar"><div class="mi-bar-f f-${pc}" style="width:${m.probability}%"></div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function resetLeaks(){
+  activeIdx = -1;
+  document.getElementById('leaksPlaceholder').style.display = '';
+  document.getElementById('leaksContent').style.display = 'none';
+  document.getElementById('leaksContent').innerHTML = '';
+}
+
+async function selectMarket(idx, show, question, probability){
+  // Toggle off if clicking same
+  if(activeIdx === idx){ resetLeaks(); renderMarkets(allMarkets); return; }
+  activeIdx = idx;
+
+  // Update active state in list
+  document.querySelectorAll('.market-item').forEach((el,i)=>{
+    el.classList.toggle('active', allMarkets.indexOf(allMarkets[i])===idx);
+  });
+  // Simpler: re-render
+  const q = document.getElementById('filter').value.toLowerCase().trim();
+  const list = q ? allMarkets.filter(m=>m.question.toLowerCase().includes(q)||m.show.toLowerCase().includes(q)) : allMarkets;
+  renderMarkets(list, !!q);
+
+  // Show leaks panel
+  const placeholder = document.getElementById('leaksPlaceholder');
+  const content     = document.getElementById('leaksContent');
+  placeholder.style.display = 'none';
+  content.style.display = '';
+
+  const pc = pClass(probability);
+  content.innerHTML = `
+    <div class="sel-header">
+      <div class="sel-q">${esc(question)}</div>
+      <div class="sel-meta">
+        <span class="sel-prob c-${pc}">${probability}%</span>
+        <span>·</span>
+        <span style="font-size:10px">${esc(show)}</span>
+      </div>
+    </div>
+    <div class="leaks-inner">
+      <div class="reddit-label">Leaks Reddit</div>
+      <div id="leaksBody">
+        <div class="skel-leaks">
+          ${[1,2,3].map(()=>`<div class="skel-card"><div class="skel-r" style="width:80%;height:11px;margin-bottom:8px"></div><div class="skel-r" style="width:55%;height:9px;margin-bottom:6px"></div><div class="skel-r" style="width:70%;height:9px"></div></div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+
+  try {
+    const res = await fetch(`/api/leaks?q=${encodeURIComponent(show)}`);
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    renderLeaks(json.leaks || [], show);
+  } catch(err){
+    document.getElementById('leaksBody').innerHTML = `<div class="err-box"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>${esc(err.message)}</div>`;
+  }
+}
+
+function renderLeaks(leaks, show){
+  const el = document.getElementById('leaksBody');
+  if(!leaks.length){
+    el.innerHTML = `<div class="no-res"><strong>Aucun leak trouvé</strong>Pas de discussions récentes sur Reddit pour "${esc(show)}".</div>`;
+    return;
+  }
+  el.innerHTML = leaks.map(l=>{
+    const cc = cClass(l.confidence);
+    const ti = typeMap[l.spoiler_type]||{l:'Leak',c:'lt-plot'};
+    const rurl = l.reddit_url||`https://www.reddit.com/search/?q=${encodeURIComponent(l.show)}`;
+    return `<div class="lcard">
+      <div class="lcard-top">
+        <div class="lmeta">
+          <div class="ltitle">${esc(l.title)}</div>
+          <div class="lsub-row">
+            <span class="rname">${esc(l.subreddit)}</span>
+            <span>·</span><span>${esc(l.upvotes)} upvotes</span>
+            <span>·</span><span class="ltype ${ti.c}">${ti.l}</span>
+          </div>
+        </div>
+        <div class="conf-col">
+          <span class="conf-n" style="color:${cColor[cc]}">${l.confidence}%</span>
+          <span class="conf-l">${cLabel[cc]}</span>
+        </div>
+      </div>
+      <div class="lbody">
+        <div class="lcontent">${esc(l.content)}</div>
+        <a class="rlink" href="${esc(rurl)}" target="_blank" rel="noopener">
+          <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor"><path d="M10 0C4.478 0 0 4.478 0 10c0 4.419 2.865 8.166 6.839 9.489.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 10 4.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.749 0 .268.18.58.688.482A10.019 10.019 0 0 0 20 10c0-5.522-4.478-10-10-10z"/></svg>
+          Voir sur Reddit
+        </a>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Auto-load on start
+loadMarkets();
 </script>
 </body>
 </html>
