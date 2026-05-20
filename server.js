@@ -126,29 +126,68 @@ async function searchMarkets(query) {
     return true;
   });
 
-  return unique.map(m => {
-    const yesPrice = getYesPrice(m);
-    const prob = Math.min(99, Math.max(1, Math.round(yesPrice * 100)));
-    return {
-      id: m.conditionId || m.id || m.slug || '',
-      question: m.question || m.groupItemTitle || m.title || 'Market',
-      probability: prob,
-      volume: fmtVol(parseFloat(m.volume || m.volumeNum || m.liquidityNum || 0)),
-      end_date: fmtDate(m.endDate || m.end_date_iso),
-      end_date_iso: m.endDate || m.end_date_iso || null,
-      polymarket_url: m.url || `https://polymarket.com/event/${m.slug || m.conditionId || ''}`,
-      // search term for Reddit = first 4 meaningful words of question
-      search_hint: (m.question || m.title || query)
-        .replace(/^will\s+/i, '')
-        .split(/\s+/)
-        .filter(w => w.length > 2)
-        .slice(0, 4)
-        .join(' ')
-    };
-  })
-  // Sort: highest probability first (strongest signal markets)
-  .sort((a, b) => b.probability - a.probability)
-  .slice(0, 30);
+  return unique.map(m => marketToObj(m, query)).sort((a, b) => b.probability - a.probability).slice(0, 30);
+}
+
+// Shared market object builder
+const STOPWORDS = new Set(['will','the','a','an','of','in','by','to','is','are','was','were','for','on','at','or','and','if','get','have','has','before','after','this','that','what','who','how','when','where','does','do','can','would','could','should','its','their','there','than','then','with','from','about','into','out','not','any','all','some','which','more','most','until','since','during','through','between','among','within','without','under','over','above','below','around','new','next','first','last','per','its','be','vs','win','hit']);
+
+function extractTopicQuery(question) {
+  return question
+    .replace(/\?/g, '')
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !STOPWORDS.has(w.toLowerCase()))
+    .slice(0, 5)
+    .join(' ');
+}
+
+function marketToObj(m, fallback = '') {
+  const yesPrice = getYesPrice(m);
+  const prob = Math.min(99, Math.max(1, Math.round(yesPrice * 100)));
+  const question = m.question || m.groupItemTitle || m.title || 'Market';
+  // Alpha opportunity: 1.0 at 50%, 0.0 at 0% or 100%
+  const alpha_opportunity = Math.round((1 - Math.abs(prob / 100 - 0.5) * 2) * 100);
+  return {
+    question,
+    probability: prob,
+    alpha_opportunity,
+    volume: fmtVol(parseFloat(m.volume || m.volumeNum || m.liquidityNum || 0)),
+    volume_raw: parseFloat(m.volume || m.volumeNum || m.liquidityNum || 0),
+    end_date: fmtDate(m.endDate || m.end_date_iso),
+    end_date_iso: m.endDate || m.end_date_iso || null,
+    polymarket_url: m.url || `https://polymarket.com/event/${m.slug || m.conditionId || ''}`,
+    search_hint: extractTopicQuery(question) || fallback
+  };
+}
+
+// ── TOP MARKETS (browse mode) ─────────────────────────────────────────────────
+
+async function fetchTopMarkets() {
+  const headers = { 'Accept': 'application/json', 'User-Agent': 'AlphaFinder/1.0' };
+  const now = Date.now();
+
+  // Fetch by high volume — these are the most actively traded markets
+  const res = await fetch('https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&order=volume&ascending=false', { headers, timeout: 12000 });
+  if (!res.ok) throw new Error(`Gamma HTTP ${res.status}`);
+  const raw = await res.json();
+  const markets = Array.isArray(raw) ? raw : (raw.markets || []);
+
+  const now2 = Date.now();
+  const seen = new Set();
+  const unique = markets.filter(m => {
+    const end = m.endDate || m.end_date_iso;
+    if (end && new Date(end).getTime() <= now2) return false;
+    const key = (m.question || m.title || '').slice(0, 60);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return unique
+    .map(m => marketToObj(m))
+    // Sort by alpha opportunity (closest to 50% first = most uncertain = most edge)
+    .sort((a, b) => b.alpha_opportunity - a.alpha_opportunity)
+    .slice(0, 60);
 }
 
 // ── REDDIT ALPHA ──────────────────────────────────────────────────────────────
@@ -159,10 +198,11 @@ async function fetchRedditAlpha(query) {
     'Accept': 'application/json'
   };
 
-  const terms = query.split(' ').slice(0, 4).join('+');
-  const alphaTerms = `${terms} leak OR rumor OR insider OR confirmed OR source OR exclusive`;
+  // Search ONLY the topic — no "leak OR rumor" mixed in (pulls unrelated content)
+  // We rank by alpha keywords AFTER fetching
+  const topicQuery = encodeURIComponent(query);
 
-  const searchUrl = `https://www.reddit.com/search.json?q=${encodeURIComponent(alphaTerms)}&sort=new&limit=30&t=month&type=link`;
+  const searchUrl = `https://www.reddit.com/search.json?q=${topicQuery}&sort=new&limit=40&t=year&type=link`;
 
   const res = await fetch(searchUrl, { headers, timeout: 8000 });
   if (!res.ok) throw new Error(`Reddit HTTP ${res.status}`);
@@ -170,21 +210,7 @@ async function fetchRedditAlpha(query) {
 
   let posts = (data?.data?.children || [])
     .map(c => c.data)
-    .filter(p => p && !p.over_18 && p.selftext !== '[removed]' && p.score > 5);
-
-  // Widen to year if sparse
-  if (posts.length < 3) {
-    try {
-      const widerUrl = `https://www.reddit.com/search.json?q=${encodeURIComponent(alphaTerms)}&sort=new&limit=25&t=year&type=link`;
-      const r2 = await fetch(widerUrl, { headers, timeout: 6000 });
-      if (r2.ok) {
-        const d2 = await r2.json();
-        const more = (d2?.data?.children || []).map(c => c.data)
-          .filter(p => p && !p.over_18 && p.selftext !== '[removed]' && p.score > 3);
-        posts = [...posts, ...more];
-      }
-    } catch {}
-  }
+    .filter(p => p && !p.over_18 && p.selftext !== '[removed]' && p.score > 3);
 
   // Deduplicate
   const seenT = new Set();
@@ -194,16 +220,20 @@ async function fetchRedditAlpha(query) {
     return true;
   });
 
-  // Score relevance
-  const qWords = query.toLowerCase().split(' ').filter(w => w.length > 2);
-  const alphaWords = ['leak', 'insider', 'source', 'exclusive', 'confirmed', 'rumor', 'rumour', 'reveal', 'scoop'];
+  // Require ALL query words to appear in the post (strict relevance)
+  const qWords = query.toLowerCase().split(' ').filter(w => w.length > 2 && !STOPWORDS.has(w));
+  const alphaWords = ['leak', 'insider', 'source', 'exclusive', 'confirmed', 'rumor', 'rumour', 'reveal', 'scoop', 'tip', 'info', 'breaking'];
 
   const scored = unique.map(p => {
     const text = (p.title + ' ' + (p.selftext || '')).toLowerCase();
-    let score = qWords.filter(w => text.includes(w)).length * 2;
-    if (alphaWords.some(w => text.includes(w))) score += 3;
-    if (p.score > 100) score += 2;
-    if (p.score > 1000) score += 3;
+    const matchCount = qWords.filter(w => text.includes(w)).length;
+    if (qWords.length > 0 && matchCount === 0) return { ...p, _score: -1 }; // completely off-topic
+    let score = matchCount * 3;
+    const alphaHits = alphaWords.filter(w => text.includes(w)).length;
+    score += alphaHits * 4;
+    if (p.score > 50)   score += 1;
+    if (p.score > 500)  score += 2;
+    if (p.score > 2000) score += 3;
     return { ...p, _score: score };
   })
   .filter(p => p._score > 0)
@@ -234,6 +264,18 @@ function buildContent(p) {
 }
 
 // ── ROUTES ────────────────────────────────────────────────────────────────────
+
+app.get('/api/top', async (req, res) => {
+  console.log('[top] fetch top markets by alpha opportunity');
+  try {
+    const markets = await fetchTopMarkets();
+    console.log(`  ${markets.length} markets`);
+    res.json({ markets, timestamp: new Date().toISOString() });
+  } catch (err) {
+    console.error('[top]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.get('/api/markets', async (req, res) => {
   const { q } = req.query;

@@ -230,20 +230,8 @@ html,body{height:100%;font-family:'Syne',sans-serif;background:var(--bg);color:v
       <button class="fpill"    data-days="120" onclick="setFilter(120)">4 mois</button>
     </div>
     <div class="left-scroll" id="marketsList">
-      <div class="empty">
-        <div class="empty-icon">🔍</div>
-        <h2>Trouve l'alpha</h2>
-        <p>Recherche n'importe quel sujet pour voir les marchés Polymarket actifs et les leaks Reddit associés.</p>
-        <div class="suggestions">
-          <div class="sug" onclick="go('Trump')">Trump</div>
-          <div class="sug" onclick="go('Stranger Things')">Stranger Things</div>
-          <div class="sug" onclick="go('Bitcoin')">Bitcoin</div>
-          <div class="sug" onclick="go('GTA VI')">GTA VI</div>
-          <div class="sug" onclick="go('Ukraine')">Ukraine</div>
-          <div class="sug" onclick="go('AI')">AI</div>
-          <div class="sug" onclick="go('Netflix')">Netflix</div>
-          <div class="sug" onclick="go('Fed rate')">Fed rate</div>
-        </div>
+      <div class="skel-list">
+        ${[1,2,3,4,5,6,7,8].map(()=>`<div class="skel-row"><div style="flex-shrink:0"><div class="skel-r" style="width:36px;height:22px;margin-bottom:4px"></div><div class="skel-r" style="width:24px;height:7px"></div></div><div style="flex:1"><div class="skel-r" style="width:90%;height:11px;margin-bottom:6px"></div><div class="skel-r" style="width:60%;height:9px"></div></div></div>`).join('')}
       </div>
     </div>
   </div>
@@ -281,6 +269,26 @@ function alphaColor(a){ return a>=70?'var(--accent)':a>=45?'var(--orange)':'var(
 
 function go(q){ document.getElementById('qinput').value=q; doSearch(); }
 document.getElementById('qinput').addEventListener('keydown', e=>{ if(e.key==='Enter') doSearch(); });
+
+async function loadTop(){
+  document.getElementById('mCount').textContent = '…';
+  document.getElementById('filterPills').style.display = 'none';
+  try {
+    const res = await fetch('/api/top');
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    allMarkets = json.markets || [];
+    activeDays = 0;
+    document.getElementById('filterPills').style.display = 'flex';
+    document.querySelectorAll('.fpill').forEach(el => el.classList.toggle('on', parseInt(el.dataset.days)===0));
+    document.getElementById('mCount').textContent = allMarkets.length;
+    renderMarkets();
+    document.getElementById('rightPanel').innerHTML = `<div class="empty" style="height:100%"><div class="empty-icon">👈</div><h2>Sélectionne un marché</h2><p>${allMarkets.length} marchés triés par opportunité d'alpha (proche de 50% = plus d'edge). Clique pour voir les posts Reddit.</p></div>`;
+  } catch(err){
+    document.getElementById('marketsList').innerHTML = `<div class="err">Erreur chargement : ${esc(err.message)}</div>`;
+    document.getElementById('mCount').textContent = '!';
+  }
+}
 
 function setFilter(days){
   activeDays = days;
@@ -354,6 +362,8 @@ function renderMarkets(){
   document.getElementById('marketsList').innerHTML = visible.map((m)=>{
     const idx = allMarkets.indexOf(m);
     const p = m.probability, cl = pc(p);
+    const ao = m.alpha_opportunity ?? 0;
+    const aoColor = ao>=70?'var(--accent)':ao>=40?'var(--orange)':'var(--text3)';
     return `<div class="mrow${idx===activeIdx?' active':''}" onclick="selectMarket(${idx})">
       <div class="prob-box">
         <span class="prob-n c-${cl}">${p}%</span>
@@ -364,6 +374,7 @@ function renderMarkets(){
         <div class="mrow-meta">
           <span>${esc(m.volume)} vol.</span>
           <span>·</span><span>${esc(m.end_date)}</span>
+          <span style="margin-left:auto;font-family:'Space Mono',monospace;font-size:10px;color:${aoColor}">${ao}% edge</span>
         </div>
         <div class="mrow-bar"><div class="mrow-bar-f f-${cl}" style="width:${p}%"></div></div>
       </div>
@@ -407,6 +418,9 @@ async function selectMarket(idx){
     document.getElementById('alphaBody').innerHTML = `<div class="err">Erreur Reddit : ${esc(err.message)}</div>`;
   }
 }
+
+// Auto-load top markets on open
+loadTop();
 
 function renderAlpha(leaks, marketProb){
   const el = document.getElementById('alphaBody');
