@@ -135,6 +135,7 @@ async function searchMarkets(query) {
       probability: prob,
       volume: fmtVol(parseFloat(m.volume || m.volumeNum || m.liquidityNum || 0)),
       end_date: fmtDate(m.endDate || m.end_date_iso),
+      end_date_iso: m.endDate || m.end_date_iso || null,
       polymarket_url: m.url || `https://polymarket.com/event/${m.slug || m.conditionId || ''}`,
       // search term for Reddit = first 4 meaningful words of question
       search_hint: (m.question || m.title || query)
