@@ -265,29 +265,48 @@ function buildContent(p) {
 
 // ── ALL TV MARKETS ────────────────────────────────────────────────────────────
 
-// Strict TV show patterns — must match word-boundary regex
+// Must match in the question/title only (not description — too noisy)
 const TV_PATTERNS = [
-  /\bseason\s+\d/i,
-  /\brenewed?\b/i,
-  /\bcancell?ed?\b/i,
-  /\bepisode\b/i,
-  /\bfinale\b/i,
-  /\bpremiere\b/i,
-  /\bemmy\b/i,
-  /\bstreaming\s+series\b/i,
-  /\btv\s+show\b/i,
-  /\btv\s+series\b/i,
+  /\bseason\s+\d/i,           // Season 2, Season 3...
+  /\brenewed?\b/i,             // renewed, renew
+  /\bcancell?ed?\b/i,          // cancelled, canceled
+  /\bepisode\b/i,              // episode
+  /\bseries\s+finale\b/i,      // series finale (not generic "finale")
+  /\bseason\s+finale\b/i,      // season finale
+  /\bseries\s+premiere\b/i,    // series premiere
+  /\bseason\s+premiere\b/i,    // season premiere
+  /\bemmy\b/i,                 // Emmy awards = TV
   /\bsitcom\b/i,
   /\banime\b/i,
   /\bdocuseries\b/i,
+  /\btv\s+show\b/i,
+  /\btv\s+series\b/i,
   /\bnetflix\s+series\b/i,
-  /\bhbo\s+series\b/i,
-  /\bhbo\s+show\b/i,
+  /\bhbo\s+(?:series|show|original)\b/i,
+  /\bstreaming\s+series\b/i,
+];
+
+// Hard exclusions — sports/games/politics that slip through
+const EXCLUDE_PATTERNS = [
+  /\bworld cup\b/i,
+  /\bfifa\b/i,
+  /\bnfl\b/i, /\bnba\b/i, /\bnhl\b/i, /\bmlb\b/i, /\bnascar\b/i,
+  /\bsuper bowl\b/i, /\bsuperbowl\b/i,
+  /\bolympic/i,
+  /\btournament\b/i, /\bchampionship\b/i,
+  /\bgrand prix\b/i, /\bformula\s+1\b/i,
+  /\bwwe\b/i, /\bufc\b/i,
+  /\bgta\s*vi?\b/i, /\bvideo game\b/i,
+  /\belection\b/i, /\bpresident\b/i,
+  /\bbitcoin\b/i, /\bcrypto\b/i, /\bethereeum\b/i,
+  /\bstock\s+market\b/i,
 ];
 
 function isTvMarket(m) {
-  const text = (m.question || m.groupItemTitle || m.title || '') + ' ' + (m.description || '');
-  return TV_PATTERNS.some(re => re.test(text));
+  // Only check the question/title — descriptions are too noisy
+  const question = (m.question || m.groupItemTitle || m.title || '');
+  if (EXCLUDE_PATTERNS.some(re => re.test(question))) return false;
+  return TV_PATTERNS.some(re => re.test(question));
 }
 
 // Extract yes price safely — Gamma API may return outcomePrices as JSON string
