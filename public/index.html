@@ -279,27 +279,23 @@ async function loadMarkets(){
 }
 
 function filterMarkets(){
-  const q = document.getElementById('filter').value.toLowerCase().trim();
-  if(!q){ renderMarkets(allMarkets); return; }
-  const filtered = allMarkets.filter(m =>
-    m.question.toLowerCase().includes(q) || m.show.toLowerCase().includes(q)
-  );
-  renderMarkets(filtered, true);
+  const q = document.getElementById('filter').value.trim();
+  renderMarkets(getFilteredList(), !!q);
 }
 
 function renderMarkets(list, filtered=false){
   const el = document.getElementById('marketsList');
   const fc = document.getElementById('filteredCount');
-  if(filtered) fc.textContent = `${list.length} résultats`;
-  else fc.textContent = '';
+  fc.textContent = filtered ? `${list.length} résultats` : '';
 
   if(!list.length){
     el.innerHTML = `<div class="no-res"><strong>Aucun marché</strong>Essaie un autre filtre.</div>`;
     return;
   }
-  el.innerHTML = list.map((m,i)=>{
-    const pc = pClass(m.probability);
-    return `<div class="market-item${i===activeIdx?' active':''}" onclick="selectMarket(${allMarkets.indexOf(m)},${JSON.stringify(m.show).replace(/</g,'\\u003c')},${JSON.stringify(m.question).replace(/</g,'\\u003c')},${m.probability})">
+  el.innerHTML = list.map(m => {
+    const idx = allMarkets.indexOf(m);
+    const pc  = pClass(m.probability);
+    return `<div class="market-item${idx===activeIdx?' active':''}" data-idx="${idx}" onclick="selectMarket(${idx})">
       <div class="mi-prob">
         <span class="mi-prob-n c-${pc}">${m.probability}%</span>
         <span class="mi-prob-l">OUI</span>
@@ -326,34 +322,28 @@ function resetLeaks(){
   document.getElementById('leaksContent').innerHTML = '';
 }
 
-async function selectMarket(idx, show, question, probability){
-  // Toggle off if clicking same
-  if(activeIdx === idx){ resetLeaks(); renderMarkets(allMarkets); return; }
+async function selectMarket(idx){
+  const m = allMarkets[idx];
+  if(!m) return;
+
+  // Toggle off if same
+  if(activeIdx === idx){ resetLeaks(); renderMarkets(getFilteredList()); return; }
   activeIdx = idx;
+  renderMarkets(getFilteredList(), !!document.getElementById('filter').value.trim());
 
-  // Update active state in list
-  document.querySelectorAll('.market-item').forEach((el,i)=>{
-    el.classList.toggle('active', allMarkets.indexOf(allMarkets[i])===idx);
-  });
-  // Simpler: re-render
-  const q = document.getElementById('filter').value.toLowerCase().trim();
-  const list = q ? allMarkets.filter(m=>m.question.toLowerCase().includes(q)||m.show.toLowerCase().includes(q)) : allMarkets;
-  renderMarkets(list, !!q);
-
-  // Show leaks panel
   const placeholder = document.getElementById('leaksPlaceholder');
   const content     = document.getElementById('leaksContent');
   placeholder.style.display = 'none';
   content.style.display = '';
 
-  const pc = pClass(probability);
+  const pc = pClass(m.probability);
   content.innerHTML = `
     <div class="sel-header">
-      <div class="sel-q">${esc(question)}</div>
+      <div class="sel-q">${esc(m.question)}</div>
       <div class="sel-meta">
-        <span class="sel-prob c-${pc}">${probability}%</span>
+        <span class="sel-prob c-${pc}">${m.probability}%</span>
         <span>·</span>
-        <span style="font-size:10px">${esc(show)}</span>
+        <span style="font-size:10px">${esc(m.show)}</span>
       </div>
     </div>
     <div class="leaks-inner">
@@ -366,13 +356,18 @@ async function selectMarket(idx, show, question, probability){
     </div>`;
 
   try {
-    const res = await fetch(`/api/leaks?q=${encodeURIComponent(show)}`);
+    const res = await fetch(`/api/leaks?q=${encodeURIComponent(m.show)}`);
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
-    renderLeaks(json.leaks || [], show);
+    renderLeaks(json.leaks || [], m.show);
   } catch(err){
     document.getElementById('leaksBody').innerHTML = `<div class="err-box"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>${esc(err.message)}</div>`;
   }
+}
+
+function getFilteredList(){
+  const q = document.getElementById('filter').value.toLowerCase().trim();
+  return q ? allMarkets.filter(m => m.question.toLowerCase().includes(q) || m.show.toLowerCase().includes(q)) : allMarkets;
 }
 
 function renderLeaks(leaks, show){

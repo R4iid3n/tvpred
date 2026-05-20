@@ -265,25 +265,60 @@ function buildContent(p) {
 
 // ── ALL TV MARKETS ────────────────────────────────────────────────────────────
 
-// TV-related keywords to identify show markets
-const TV_KEYWORDS = ['season', 'renewed', 'cancelled', 'canceled', 'episode', 'premiere', 'series', 'emmy', 'finale', 'show', 'streaming', 'netflix', 'hbo', 'hulu', 'disney', 'apple tv', 'amazon'];
+// Strict TV show patterns — must match word-boundary regex
+const TV_PATTERNS = [
+  /\bseason\s+\d/i,
+  /\brenewed?\b/i,
+  /\bcancell?ed?\b/i,
+  /\bepisode\b/i,
+  /\bfinale\b/i,
+  /\bpremiere\b/i,
+  /\bemmy\b/i,
+  /\bstreaming\s+series\b/i,
+  /\btv\s+show\b/i,
+  /\btv\s+series\b/i,
+  /\bsitcom\b/i,
+  /\banime\b/i,
+  /\bdocuseries\b/i,
+  /\bnetflix\s+series\b/i,
+  /\bhbo\s+series\b/i,
+  /\bhbo\s+show\b/i,
+];
 
 function isTvMarket(m) {
-  const text = ((m.question || m.groupItemTitle || m.title || '') + ' ' + (m.description || '')).toLowerCase();
-  return TV_KEYWORDS.some(kw => text.includes(kw));
+  const text = (m.question || m.groupItemTitle || m.title || '') + ' ' + (m.description || '');
+  return TV_PATTERNS.some(re => re.test(text));
+}
+
+// Extract yes price safely — Gamma API may return outcomePrices as JSON string
+function getYesPrice(m) {
+  let prices = m.outcomePrices;
+  if (typeof prices === 'string') {
+    try { prices = JSON.parse(prices); } catch { prices = null; }
+  }
+  if (Array.isArray(prices) && prices[0] != null) {
+    const v = parseFloat(prices[0]);
+    if (!isNaN(v)) return v;
+  }
+  const fromTokens = parseFloat(m.tokens?.[0]?.price);
+  if (!isNaN(fromTokens)) return fromTokens;
+  const fromBid = parseFloat(m.bestBid ?? m.bestAsk ?? m.lastTradePrice);
+  if (!isNaN(fromBid)) return fromBid;
+  return 0.5;
 }
 
 async function fetchAllTvMarkets() {
   const headers = { 'Accept': 'application/json', 'User-Agent': 'TVpred/1.0' };
   const now = Date.now();
+  const oneWeek = now + 7 * 24 * 60 * 60 * 1000;
 
-  // Parallel fetch: broad entertainment + TV-specific keywords
   const urls = [
-    'https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&tag=entertainment',
     'https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&q=season',
-    'https://gamma-api.polymarket.com/markets?limit=50&active=true&closed=false&q=renewed',
-    'https://gamma-api.polymarket.com/markets?limit=50&active=true&closed=false&q=cancelled',
-    'https://gamma-api.polymarket.com/markets?limit=50&active=true&closed=false&q=premiere',
+    'https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&q=renewed',
+    'https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&q=cancelled',
+    'https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&q=episode',
+    'https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&q=finale',
+    'https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&q=premiere',
   ];
 
   const results = await Promise.allSettled(
@@ -294,16 +329,16 @@ async function fetchAllTvMarkets() {
   for (const r of results) {
     if (r.status === 'fulfilled') {
       const raw = r.value;
-      const arr = Array.isArray(raw) ? raw : (raw.markets || []);
-      all = all.concat(arr);
+      all = all.concat(Array.isArray(raw) ? raw : (raw.markets || []));
     }
   }
 
-  // Filter: active end date + TV-related
+  // Keep only TV markets resolving within 1 week
   const active = all.filter(m => {
     const end = m.endDate || m.end_date_iso;
-    if (end && new Date(end).getTime() <= now) return false;
-    return isTvMarket(m);
+    if (!end) return false;
+    const t = new Date(end).getTime();
+    return t > now && t <= oneWeek && isTvMarket(m);
   });
 
   // Deduplicate
@@ -317,22 +352,23 @@ async function fetchAllTvMarkets() {
 
   // Sort soonest end date first
   unique.sort((a, b) => {
-    const da = new Date(a.endDate || a.end_date_iso || '9999').getTime();
-    const db = new Date(b.endDate || b.end_date_iso || '9999').getTime();
+    const da = new Date(a.endDate || a.end_date_iso).getTime();
+    const db = new Date(b.endDate || b.end_date_iso).getTime();
     return da - db;
   });
 
-  return unique.slice(0, 80).map(m => ({
-    show: extractShowName(m.question || m.groupItemTitle || m.title || '', ''),
-    question: m.question || m.groupItemTitle || m.title || 'Market',
-    probability: Math.min(99, Math.max(1, pct(
-      m.outcomePrices?.[0] ?? m.tokens?.[0]?.price ?? m.bestBid ?? 0.5
-    ))),
-    volume: fmtVol(parseFloat(m.volume || m.volumeNum || m.liquidityNum || 0)),
-    end_date: fmtDate(m.endDate || m.end_date_iso),
-    trend: calcTrend(m),
-    polymarket_url: m.url || `https://polymarket.com/event/${m.slug || m.conditionId || ''}`
-  }));
+  return unique.slice(0, 80).map(m => {
+    const yesPrice = getYesPrice(m);
+    return {
+      show: extractShowName(m.question || m.groupItemTitle || m.title || '', ''),
+      question: m.question || m.groupItemTitle || m.title || 'Market',
+      probability: Math.min(99, Math.max(1, Math.round(yesPrice * 100))),
+      volume: fmtVol(parseFloat(m.volume || m.volumeNum || m.liquidityNum || 0)),
+      end_date: fmtDate(m.endDate || m.end_date_iso),
+      trend: calcTrend(m),
+      polymarket_url: m.url || `https://polymarket.com/event/${m.slug || m.conditionId || ''}`
+    };
+  });
 }
 
 app.get('/api/markets', async (req, res) => {
