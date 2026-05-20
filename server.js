@@ -71,67 +71,66 @@ function fmtDate(iso) {
 // ── POLYMARKET ────────────────────────────────────────────────────────────────
 
 async function fetchPolymarketByQuery(query) {
-  // Search the CLOB /markets endpoint with keyword filter
-  // Polymarket exposes a public REST API at clob.polymarket.com
   const keywords = encodeURIComponent(query);
-  const url = `https://clob.polymarket.com/markets?next_cursor=&limit=30&tag=entertainment`;
+  const now = Date.now();
+  const headers = { 'Accept': 'application/json', 'User-Agent': 'TVpred/1.0' };
 
-  const res = await fetch(url, {
-    headers: {
-      'Accept': 'application/json',
-      'User-Agent': 'TVpred/1.0'
-    },
-    timeout: 8000
-  });
+  // Primary: Gamma API — supports active/closed filters and full-text search
+  let combined = [];
+  try {
+    const gammaUrl = `https://gamma-api.polymarket.com/markets?limit=30&active=true&closed=false&q=${keywords}`;
+    const rg = await fetch(gammaUrl, { headers, timeout: 8000 });
+    if (rg.ok) {
+      const dg = await rg.json();
+      const gammaMarkets = Array.isArray(dg) ? dg : (dg.markets || []);
+      const q = query.toLowerCase();
+      combined = gammaMarkets.filter(m => {
+        const title = (m.question || m.groupItemTitle || m.title || '').toLowerCase();
+        return q.split(' ').some(word => word.length > 3 && title.includes(word));
+      });
+    }
+  } catch {}
 
-  if (!res.ok) throw new Error(`Polymarket HTTP ${res.status}`);
-  const data = await res.json();
-
-  const markets = (data.data || data.markets || []);
-  const q = query.toLowerCase();
-
-  // Filter by query relevance
-  const filtered = markets.filter(m => {
-    const title = (m.question || m.title || '').toLowerCase();
-    const desc  = (m.description || '').toLowerCase();
-    return q.split(' ').some(word => word.length > 3 && (title.includes(word) || desc.includes(word)));
-  });
-
-  // Fallback: search dedicated endpoint
-  let combined = filtered;
+  // Fallback: CLOB endpoint with active filter
   if (combined.length < 2) {
-    const searchUrl = `https://clob.polymarket.com/markets?next_cursor=&limit=20&search=${keywords}`;
     try {
-      const r2 = await fetch(searchUrl, { headers: { 'Accept': 'application/json', 'User-Agent': 'TVpred/1.0' }, timeout: 6000 });
-      if (r2.ok) {
-        const d2 = await r2.json();
-        combined = [...combined, ...(d2.data || d2.markets || [])];
+      const clobUrl = `https://clob.polymarket.com/markets?next_cursor=&limit=30&active=true`;
+      const res = await fetch(clobUrl, { headers, timeout: 8000 });
+      if (res.ok) {
+        const data = await res.json();
+        const markets = (data.data || data.markets || []);
+        const q = query.toLowerCase();
+        const filtered = markets.filter(m => {
+          const title = (m.question || m.title || '').toLowerCase();
+          const desc  = (m.description || '').toLowerCase();
+          return q.split(' ').some(word => word.length > 3 && (title.includes(word) || desc.includes(word)));
+        });
+        combined = [...combined, ...filtered];
       }
     } catch {}
   }
 
-  // Also try Gamma (Polymarket secondary API for market metadata)
-  try {
-    const gammaUrl = `https://gamma-api.polymarket.com/markets?limit=20&active=true&closed=false&tag=entertainment&q=${keywords}`;
-    const rg = await fetch(gammaUrl, { headers: { 'Accept': 'application/json', 'User-Agent': 'TVpred/1.0' }, timeout: 6000 });
-    if (rg.ok) {
-      const dg = await rg.json();
-      const gammaMarkets = Array.isArray(dg) ? dg : (dg.markets || []);
-      const gammaFiltered = gammaMarkets.filter(m => {
-        const title = (m.question || m.groupItemTitle || '').toLowerCase();
-        return q.split(' ').some(word => word.length > 3 && title.includes(word));
-      });
-      combined = [...combined, ...gammaFiltered];
-    }
-  } catch {}
+  // Filter out markets already closed/resolved (end_date in the past)
+  const active = combined.filter(m => {
+    const end = m.endDate || m.end_date_iso || m.endDateIso;
+    if (!end) return true; // no date = keep
+    return new Date(end).getTime() > now;
+  });
 
   // Deduplicate by question text
   const seen = new Set();
-  const unique = combined.filter(m => {
+  const unique = active.filter(m => {
     const key = (m.question || m.title || '').slice(0, 50);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
+  });
+
+  // Sort by soonest end date first (most time-relevant)
+  unique.sort((a, b) => {
+    const da = new Date(a.endDate || a.end_date_iso || '9999').getTime();
+    const db = new Date(b.endDate || b.end_date_iso || '9999').getTime();
+    return da - db;
   });
 
   return unique.slice(0, 6).map(m => {
@@ -177,15 +176,30 @@ async function fetchRedditLeaks(query) {
   const show = query.split(' ').slice(0, 3).join('+');
   const leakTerms = `${show}+leak OR spoiler OR rumor OR renewal OR cancelled OR season`;
 
-  const searchUrl = `https://www.reddit.com/search.json?q=${encodeURIComponent(leakTerms)}&sort=hot&limit=25&t=month&type=link`;
+  const searchUrl = `https://www.reddit.com/search.json?q=${encodeURIComponent(leakTerms)}&sort=new&limit=25&t=month&type=link`;
 
   const res = await fetch(searchUrl, { headers, timeout: 8000 });
   if (!res.ok) throw new Error(`Reddit HTTP ${res.status}`);
   const data = await res.json();
 
-  const posts = (data?.data?.children || [])
+  let posts = (data?.data?.children || [])
     .map(c => c.data)
     .filter(p => p && !p.over_18 && p.selftext !== '[removed]' && p.score > 10);
+
+  // If sparse, widen to past year
+  if (posts.length < 3) {
+    try {
+      const widerUrl = `https://www.reddit.com/search.json?q=${encodeURIComponent(leakTerms)}&sort=new&limit=25&t=year&type=link`;
+      const r3 = await fetch(widerUrl, { headers, timeout: 6000 });
+      if (r3.ok) {
+        const d3 = await r3.json();
+        const wider = (d3?.data?.children || [])
+          .map(c => c.data)
+          .filter(p => p && !p.over_18 && p.selftext !== '[removed]' && p.score > 5);
+        posts = [...posts, ...wider];
+      }
+    } catch {}
+  }
 
   // Also try subreddit-specific search
   const slug = query.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
