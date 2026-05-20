@@ -115,18 +115,33 @@ async function searchMarkets(query) {
     all = all.concat(clobMarkets);
   }
 
-  // Filter active + deduplicate
+  // Filter active + deduplicate + remove noise markets
   const seen = new Set();
   const unique = all.filter(m => {
     const end = m.endDate || m.end_date_iso;
     if (end && new Date(end).getTime() <= now) return false;
-    const key = (m.question || m.title || '').slice(0, 60);
+    const question = m.question || m.title || '';
+    if (isNoiseMarket(question)) return false;
+    const key = question.slice(0, 60);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 
   return unique.map(m => marketToObj(m, query)).sort((a, b) => b.probability - a.probability).slice(0, 30);
+}
+
+// Markets with no Reddit alpha signal — short-term price flips, no discussion
+const NOISE_MARKET_PATTERNS = [
+  /\bup or down\b/i,           // XRP Up or Down, BNB Up or Down...
+  /\bhigher or lower\b/i,
+  /\d+:\d+[ap]m.{0,20}\d+:\d+[ap]m/i,  // time window markets "7:45AM-7:50AM"
+  /\bwill .+ (reach|hit|exceed|cross|drop to|fall to|close (above|below))\s+\$?[\d,]+/i, // price target
+  /\b(btc|eth|xrp|bnb|sol|doge|ada|matic|avax|link)\b.{0,30}\$[\d,]+/i, // crypto price markets
+];
+
+function isNoiseMarket(question) {
+  return NOISE_MARKET_PATTERNS.some(re => re.test(question));
 }
 
 // Shared market object builder
@@ -177,7 +192,9 @@ async function fetchTopMarkets() {
   const unique = markets.filter(m => {
     const end = m.endDate || m.end_date_iso;
     if (end && new Date(end).getTime() <= now2) return false;
-    const key = (m.question || m.title || '').slice(0, 60);
+    const question = m.question || m.title || '';
+    if (isNoiseMarket(question)) return false;
+    const key = question.slice(0, 60);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
