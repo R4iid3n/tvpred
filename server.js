@@ -310,7 +310,6 @@ function getYesPrice(m) {
 async function fetchAllTvMarkets() {
   const headers = { 'Accept': 'application/json', 'User-Agent': 'TVpred/1.0' };
   const now = Date.now();
-  const oneWeek = now + 7 * 24 * 60 * 60 * 1000;
 
   const urls = [
     'https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&q=season',
@@ -333,12 +332,11 @@ async function fetchAllTvMarkets() {
     }
   }
 
-  // Keep only TV markets resolving within 1 week
+  // Keep only active TV markets (not yet resolved)
   const active = all.filter(m => {
     const end = m.endDate || m.end_date_iso;
-    if (!end) return false;
-    const t = new Date(end).getTime();
-    return t > now && t <= oneWeek && isTvMarket(m);
+    if (end && new Date(end).getTime() <= now) return false;
+    return isTvMarket(m);
   });
 
   // Deduplicate
