@@ -181,8 +181,8 @@ async function fetchTopMarkets() {
   const headers = { 'Accept': 'application/json', 'User-Agent': 'AlphaFinder/1.0' };
   const now = Date.now();
 
-  // Fetch by high volume — these are the most actively traded markets
-  const res = await fetch('https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&order=volume&ascending=false', { headers, timeout: 12000 });
+  // Fetch geopolitics markets by volume
+  const res = await fetch('https://gamma-api.polymarket.com/markets?limit=100&active=true&closed=false&tag=geopolitics&order=volume&ascending=false', { headers, timeout: 12000 });
   if (!res.ok) throw new Error(`Gamma HTTP ${res.status}`);
   const raw = await res.json();
   const markets = Array.isArray(raw) ? raw : (raw.markets || []);
@@ -237,34 +237,41 @@ async function fetchRedditAlpha(query) {
     return true;
   });
 
-  // Require ALL query words to appear in the post (strict relevance)
   const qWords = query.toLowerCase().split(' ').filter(w => w.length > 2 && !STOPWORDS.has(w));
-  const alphaWords = ['leak', 'insider', 'source', 'exclusive', 'confirmed', 'rumor', 'rumour', 'reveal', 'scoop', 'tip', 'info', 'breaking'];
+  const alphaWords = ['leak', 'insider', 'source', 'exclusive', 'confirmed', 'rumor', 'rumour', 'reveal', 'scoop', 'breaking', 'classified', 'whistleblower', 'anonymous', 'claims', 'alleges'];
+
+  // Minimum relevance threshold: post must contain at least 50% of topic words
+  const minMatch = Math.max(1, Math.ceil(qWords.length * 0.5));
 
   const scored = unique.map(p => {
     const text = (p.title + ' ' + (p.selftext || '')).toLowerCase();
     const matchCount = qWords.filter(w => text.includes(w)).length;
-    if (qWords.length > 0 && matchCount === 0) return { ...p, _score: -1 }; // completely off-topic
-    let score = matchCount * 3;
+    if (matchCount < minMatch) return { ...p, _score: -1 }; // off-topic, discard
     const alphaHits = alphaWords.filter(w => text.includes(w)).length;
-    score += alphaHits * 4;
-    if (p.score > 50)   score += 1;
-    if (p.score > 500)  score += 2;
-    if (p.score > 2000) score += 3;
-    return { ...p, _score: score };
+    // Alpha signal = how many alpha keywords + upvote weight + recency
+    const signal = matchCount * 2 + alphaHits * 5;
+    const engagement = Math.log10(Math.max(p.score, 1));
+    return { ...p, _score: signal * engagement };
   })
   .filter(p => p._score > 0)
-  .sort((a, b) => (b._score * Math.log(b.score + 1)) - (a._score * Math.log(a.score + 1)))
+  .sort((a, b) => b._score - a._score)
   .slice(0, 8);
 
   return scored.map(p => {
-    const confidence = calcConfidence(p.score, p.created_utc);
+    const text = p.title + ' ' + (p.selftext || '');
+    const alphaHits = alphaWords.filter(w => text.toLowerCase().includes(w)).length;
+    const matchCount = qWords.filter(w => text.toLowerCase().includes(w)).length;
+    // Signal: 0-100 based on alpha keyword density + relevance
+    const signal = Math.min(99, Math.round(
+      (alphaHits * 20 + matchCount * 10 + Math.log10(Math.max(p.score, 1)) * 8)
+    ));
     return {
       title: p.title.slice(0, 140),
       subreddit: `r/${p.subreddit}`,
       upvotes: fmtNum(p.score),
-      confidence,
-      post_type: guessPostType(p.title + ' ' + (p.selftext || '')),
+      signal,             // replaces confusing "alpha" score
+      has_alpha: alphaHits > 0,
+      post_type: guessPostType(text),
       content: buildContent(p),
       reddit_url: `https://www.reddit.com${p.permalink}`,
       age_h: Math.round((Date.now() / 1000 - p.created_utc) / 3600)

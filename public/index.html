@@ -401,7 +401,7 @@ async function selectMarket(idx){
       </div>
     </div>
     <div class="alpha-header">Alpha Reddit</div>
-    <div class="alpha-desc">Posts filtrés par pertinence × engagement · score de confiance basé sur upvotes + récence</div>
+    <div class="alpha-desc">Posts pertinents au marché uniquement · Signal = mots-clés alpha (insider/leak/source) × engagement · 🔑 = contient info potentielle</div>
     <div id="alphaBody">
       <div class="skel-cards">
         ${[1,2,3,4].map(()=>`<div class="skel-card"><div class="skel-r" style="width:75%;height:11px;margin-bottom:7px"></div><div class="skel-r" style="width:50%;height:9px;margin-bottom:5px"></div><div class="skel-r" style="width:65%;height:9px"></div></div>`).join('')}
@@ -428,17 +428,12 @@ function renderAlpha(leaks, marketProb){
     el.innerHTML = `<div class="no-res"><strong>Aucun post trouvé</strong>Pas de discussions Reddit avec de l'alpha sur ce sujet.</div>`;
     return;
   }
-  // Compute alpha score per post
-  const withAlpha = leaks.map(l => {
-    const uncertainty = 1 - Math.abs(marketProb/100 - 0.5) * 2;
-    const alpha = Math.round(l.confidence * (0.5 + 0.5 * uncertainty));
-    return { ...l, alpha };
-  }).sort((a,b)=>b.alpha-a.alpha);
-
-  el.innerHTML = withAlpha.map((l,i)=>{
+  el.innerHTML = leaks.map((l,i)=>{
     const tc = typeClass[l.post_type]||'t-discussion';
     const tl = typeLabel[l.post_type]||'Discussion';
-    const ac = alphaColor(l.alpha);
+    const sc = l.signal||0;
+    const signalColor = sc>=50?'var(--accent)':sc>=25?'var(--orange)':'var(--text3)';
+    const signalLabel = l.has_alpha ? '🔑 Signal' : 'Signal';
     return `<div class="acard" style="animation-delay:${i*40}ms">
       <div class="acard-top">
         <div class="acard-body">
@@ -451,8 +446,8 @@ function renderAlpha(leaks, marketProb){
           </div>
         </div>
         <div class="alpha-col">
-          <span class="alpha-n" style="color:${ac}">${l.alpha}</span>
-          <span class="alpha-l">Alpha</span>
+          <span class="alpha-n" style="color:${signalColor}">${sc}</span>
+          <span class="alpha-l" style="font-size:8px">${signalLabel}</span>
         </div>
       </div>
       <div class="acard-content">
